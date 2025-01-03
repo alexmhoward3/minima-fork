@@ -24,6 +24,13 @@ services:
         EMBEDDING_MODEL_ID: ${EMBEDDING_MODEL_ID}
         EMBEDDING_SIZE: ${EMBEDDING_SIZE}
         START_INDEXING: ${START_INDEXING}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     volumes:
       - ${LOCAL_FILES_PATH}:/usr/src/app/local_files/
       - ./indexer:/usr/src/app

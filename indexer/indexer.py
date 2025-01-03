@@ -2,6 +2,7 @@ import os
 import uuid
 import torch
 import logging
+import fnmatch
 from dataclasses import dataclass
 from typing import List, Set, Dict, Optional
 from pathlib import Path
@@ -59,6 +60,36 @@ class Indexer:
         self.embed_model = self._initialize_embeddings()
         self.document_store = self._setup_collection()
         self.text_splitter = self._initialize_text_splitter()
+        self.ignore_patterns = self._load_ignore_patterns()
+
+    def _load_ignore_patterns(self) -> List[str]:
+        """Load patterns from .minimaignore file if it exists"""
+        # Look for .minimaignore in the container path since that's where the mounted files are
+        ignore_file = os.path.join(self.config.CONTAINER_PATH, '.minimaignore')
+        patterns = []
+        if os.path.exists(ignore_file):
+            try:
+                with open(ignore_file, 'r') as f:
+                    patterns = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+                logger.info(f"Loaded {len(patterns)} ignore patterns from .minimaignore")
+            except Exception as e:
+                logger.error(f"Error loading .minimaignore: {e}")
+        return patterns
+
+    def _should_ignore(self, path: str) -> bool:
+        """Check if a file should be ignored based on .minimaignore patterns"""
+        # Get path relative to container mount point for consistent pattern matching
+        try:
+            relative_path = os.path.relpath(path, self.config.CONTAINER_PATH)
+            logger.debug(f"Checking if {relative_path} should be ignored")
+            for pattern in self.ignore_patterns:
+                if fnmatch.fnmatch(relative_path, pattern):
+                    logger.debug(f"File {relative_path} matches ignore pattern {pattern}")
+                    return True
+            return False
+        except ValueError as e:
+            logger.error(f"Error checking ignore pattern for {path}: {e}")
+            return False
 
     def _initialize_qdrant(self) -> QdrantClient:
         return QdrantClient(host=self.config.QDRANT_BOOTSTRAP)
@@ -92,6 +123,9 @@ class Indexer:
         )
 
     def _create_loader(self, file_path: str):
+        if self._should_ignore(file_path):
+            raise ValueError(f"File ignored by .minimaignore: {file_path}")
+            
         file_extension = Path(file_path).suffix.lower()
         loader_class = self.config.EXTENSIONS_TO_LOADERS.get(file_extension)
         
@@ -129,6 +163,11 @@ class Indexer:
             ids = self._process_file(loader)
             if ids:
                 logger.info(f"Successfully indexed {path} with IDs: {ids}")
+        except ValueError as e:
+            if "ignored by .minimaignore" in str(e):
+                logger.info(str(e))  # Log ignored files as info, not error
+            else:
+                logger.error(f"Failed to index file {path}: {str(e)}")
         except Exception as e:
             logger.error(f"Failed to index file {path}: {str(e)}")
 

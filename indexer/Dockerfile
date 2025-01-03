@@ -1,7 +1,7 @@
-FROM python:3.9.6-slim-buster
+FROM pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime
 
 WORKDIR /usr/src/app
-RUN pip install --upgrade pip
+RUN apt-get update && apt-get install -y git
 
 ARG EMBEDDING_MODEL_ID
 ARG START_INDEXING
