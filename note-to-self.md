@@ -1,6 +1,12 @@
 command to get it started: 
     docker compose -f docker-compose-mcp.yml down; docker compose -f docker-compose-mcp.yml up --build -d
 
-Some good improvements in the roadmap doc.
+## Inspector
+npx -y @modelcontextprotocol/inspector uv --directory c:/Users/Alex/Documents/Projects/minima-fork/mcp-server run minima
 
-Also consider implementing openai embeddings
+
+
+## possible future tasks
+Some good improvements in the roadmap doc.
+consider implementing openai embeddings
+create mcp tool to nuke the database and reindex

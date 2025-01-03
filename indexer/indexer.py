@@ -13,6 +13,7 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from qdrant_client.http.models import Distance, VectorParams
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
 from langchain_community.document_loaders import (
     TextLoader,
     CSVLoader,
@@ -49,6 +50,7 @@ class Config:
     QDRANT_BOOTSTRAP = "qdrant"
     EMBEDDING_MODEL_ID = os.environ.get("EMBEDDING_MODEL_ID")
     EMBEDDING_SIZE = os.environ.get("EMBEDDING_SIZE")
+    RERANKER_MODEL = os.environ.get("RERANKER_MODEL")
     
     CHUNK_SIZE = 500
     CHUNK_OVERLAP = 200
@@ -61,6 +63,16 @@ class Indexer:
         self.document_store = self._setup_collection()
         self.text_splitter = self._initialize_text_splitter()
         self.ignore_patterns = self._load_ignore_patterns()
+        self.reranker = self._initialize_reranker()
+        
+    def _initialize_reranker(self):
+        if not self.config.RERANKER_MODEL:
+            return None
+            
+        logger.info(f"Initializing reranker model: {self.config.RERANKER_MODEL}")
+        tokenizer = AutoTokenizer.from_pretrained(self.config.RERANKER_MODEL)
+        model = AutoModelForSequenceClassification.from_pretrained(self.config.RERANKER_MODEL)
+        return (tokenizer, model)
 
     def _load_ignore_patterns(self) -> List[str]:
         """Load patterns from .minimaignore file if it exists"""
@@ -183,7 +195,20 @@ class Indexer:
             links = set()
             results = []
             
-            for item in found:
+            # Rerank results if reranker is configured
+            if self.reranker:
+                tokenizer, model = self.reranker
+                # Prepare pairs of (query, document) for reranking
+                pairs = [(query, doc.page_content) for doc in found]
+                inputs = tokenizer(pairs, padding=True, truncation=True, return_tensors="pt")
+                with torch.no_grad():
+                    scores = model(**inputs).logits
+                # Sort documents by reranker scores
+                sorted_docs = [doc for _, doc in sorted(zip(scores, found), reverse=True)]
+            else:
+                sorted_docs = found
+
+            for item in sorted_docs:
                 path = item.metadata["file_path"].replace(
                     self.config.CONTAINER_PATH,
                     self.config.LOCAL_FILES_PATH

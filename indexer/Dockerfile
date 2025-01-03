@@ -5,9 +5,11 @@ RUN apt-get update && apt-get install -y git
 
 ARG EMBEDDING_MODEL_ID
 ARG START_INDEXING
+ARG RERANKER_MODEL
 
 RUN pip install huggingface_hub
 RUN huggingface-cli download $EMBEDDING_MODEL_ID --repo-type model
+RUN huggingface-cli download $RERANKER_MODEL --repo-type model
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

@@ -24,6 +24,7 @@ services:
         EMBEDDING_MODEL_ID: ${EMBEDDING_MODEL_ID}
         EMBEDDING_SIZE: ${EMBEDDING_SIZE}
         START_INDEXING: ${START_INDEXING}
+        RERANKER_MODEL: ${RERANKER_MODEL}
     deploy:
       resources:
         reservations:
