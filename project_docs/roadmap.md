@@ -6,9 +6,27 @@
 ### Key Deliverables
 - [ ] Enhanced Qdrant payload implementation
   - Design payload schema for Obsidian features
+    - The payload should include fields for:
+      - `file_path`: The path to the Obsidian note.
+      - `chunk_id`: A unique identifier for the text chunk.
+      - `heading`: The heading of the section the chunk belongs to.
+      - `tags`: An array of tags associated with the note.
+      - `links`: An array of links to other notes within the vault.
+      - `created_at`: The creation timestamp of the note.
+      - `modified_at`: The last modified timestamp of the note.
+    - Consider using nested objects for complex metadata.
   - Document-to-document relationship tracking
+    - Store links between documents in the `links` field of the payload.
+    - Use a graph database or similar structure to efficiently query relationships.
+    - Consider storing backlinks as well.
   - Efficient metadata storage structure
+    - Use appropriate data types for each field to minimize storage space.
+    - Index fields that will be used for filtering.
+    - Consider using a separate collection for metadata if necessary.
   - Payload-based scoring configuration
+    - Use payload fields to boost or penalize search results.
+    - Allow users to configure scoring based on metadata.
+    - Consider using a combination of vector similarity and payload-based scoring.
 
 - [ ] Enhanced context window system
   - Cross-document context aggregation using payloads
