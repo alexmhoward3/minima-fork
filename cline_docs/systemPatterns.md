@@ -22,8 +22,8 @@ The system is built with a Python backend for indexing and a frontend for search
   - Feature-weighted result ranking
 - Adaptive compute resource utilization
 - Chunked document processing with metadata preservation
-- Obsidian feature integration:
-  - Internal links stored in payload
+  - Obsidian feature integration:
+  - Internal links stored in payload (requires regex parsing)
   - Tags as filterable attributes
   - YAML frontmatter as structured payload
   - Backlinks tracked in payload metadata

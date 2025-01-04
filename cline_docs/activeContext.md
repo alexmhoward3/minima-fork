@@ -21,8 +21,8 @@ Testing the BAAI/bge-m3 reranker implementation and analyzing its performance.
 
 ## Next steps
 Explore integration of Obsidian-specific features to enhance cross-document relevance:
-- Leverage internal links ([[note]]) for explicit relationships
-- Use tags (#tag) for semantic grouping
+- Leverage internal links ([[note]]) for explicit relationships (requires regex parsing)
+- Use tags (#tag) for semantic grouping (working)
 - Extract YAML frontmatter for structured metadata
 - Implement backlink-based relevance scoring
 - Support hierarchical tag relationships (#parent/child)
