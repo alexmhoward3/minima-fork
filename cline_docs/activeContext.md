@@ -14,9 +14,11 @@ Refining ObsidianLoader integration and metadata handling.
   - Proper document splitting after loading
   - Preserved ObsidianLoader's metadata handling
   - Improved error handling and logging
+- Attempted to modify the `file_path` metadata to include the filename.
 
 ## Next steps
 - Decision made to not include backlinks in node metadata for now due to complexity and performance concerns. Will revisit if needed.
 - Modify the reranker input to use proper separator tokens between the query and document content.
 - Wikilink extraction still needs work.
 - Need to figure out the most appropriate chunk size for documents.
+- Fix the `file_path` metadata to correctly include the filename.
