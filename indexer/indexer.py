@@ -79,7 +79,6 @@ class Indexer:
 
     def _load_ignore_patterns(self) -> List[str]:
         """Load patterns from .minimaignore file if it exists"""
-        # Look for .minimaignore in the container path since that's where the mounted files are
         ignore_file = os.path.join(self.config.CONTAINER_PATH, '.minimaignore')
         patterns = []
         if os.path.exists(ignore_file):
@@ -93,7 +92,6 @@ class Indexer:
 
     def _should_ignore(self, path: str) -> bool:
         """Check if a file should be ignored based on .minimaignore patterns"""
-        # Get path relative to container mount point for consistent pattern matching
         try:
             relative_path = os.path.relpath(path, self.config.CONTAINER_PATH)
             logger.debug(f"Checking if {relative_path} should be ignored")
@@ -177,53 +175,54 @@ class Indexer:
 
             # Process each document
             for doc in documents:
-                # Add base file path
+                # Standardize file path
                 doc.metadata['file_path'] = loader.file_path
-                
+                if 'path' in doc.metadata:
+                    del doc.metadata['path']
+
                 # For Obsidian files, standardize metadata
                 if isinstance(loader, ObsidianLoader):
-                    # Handle tags from both frontmatter and inline
+                    # Handle tags
                     tags = set()
                     if 'tags' in doc.metadata:
                         if isinstance(doc.metadata['tags'], str):
                             tags.update(tag.strip() for tag in doc.metadata['tags'].split(','))
                         elif isinstance(doc.metadata['tags'], (list, set)):
                             tags.update(doc.metadata['tags'])
-                    
+
                     # Standardize dates
-                    for date_field in ['created', 'modified']:
+                    for date_field, alt_field in [('created', 'created_at'), ('last_modified', 'modified_at')]:
                         if date_field in doc.metadata:
                             try:
                                 value = doc.metadata[date_field]
-                                logger.info(f"Processing {date_field} with value '{value}' of type {type(value).__name__}")
-
                                 if isinstance(value, (int, float)):
                                     # Handle Unix timestamp
                                     iso_date = datetime.fromtimestamp(value).isoformat()
                                 elif isinstance(value, str):
                                     # Try parsing ISO format or common date formats
                                     try:
-                                        # First try ISO format
-                                        dt = datetime.fromisoformat(value)
+                                        dt = datetime.fromisoformat(value.replace(" ", "T"))
                                     except ValueError:
-                                        # If that fails, try common formats
                                         import dateutil.parser
                                         dt = dateutil.parser.parse(value)
                                     iso_date = dt.isoformat()
                                 else:
                                     continue
-                                doc.metadata[f'{date_field}_at'] = iso_date
+                                doc.metadata[alt_field] = iso_date
                             except Exception as e:
                                 logger.debug(f"Could not parse {date_field} value '{value}': {e}")
-                    
-                    # Update metadata in standardized format
+
+                    # Standardize metadata
                     doc.metadata.update({
                         "tags": list(tags),
-                        "links": doc.metadata.get('links', []),
+                        "links": [],  # Placeholder for future link extraction
                         "created_at": doc.metadata.get('created_at'),
-                        "modified_at": doc.metadata.get('modified_at'),
-                        "frontmatter": doc.metadata.get('frontmatter', {})
+                        "modified_at": doc.metadata.get('modified_at')
                     })
+
+                    # Clean up redundant fields
+                    for field in ['path', 'frontmatter', 'source']:
+                        doc.metadata.pop(field, None)
 
             # Generate IDs and add to store
             uuids = [str(uuid.uuid4()) for _ in range(len(documents))]
@@ -324,7 +323,6 @@ class Indexer:
                         "links": metadata.get("links", []),
                         "created_at": metadata.get("created_at"),
                         "modified_at": metadata.get("modified_at"),
-                        "frontmatter": metadata.get("frontmatter", {}),
                         "relevance_score": relevance_score
                     }
                 }
