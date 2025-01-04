@@ -215,7 +215,6 @@ class Indexer:
                     # Standardize metadata
                     doc.metadata.update({
                         "tags": list(tags),
-                        "links": [],  # Placeholder for future link extraction
                         "created_at": doc.metadata.get('created_at'),
                         "modified_at": doc.metadata.get('modified_at')
                     })
