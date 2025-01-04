@@ -25,6 +25,8 @@ services:
         EMBEDDING_SIZE: ${EMBEDDING_SIZE}
         START_INDEXING: ${START_INDEXING}
         RERANKER_MODEL: ${RERANKER_MODEL}
+        CHUNK_SIZE: ${CHUNK_SIZE}
+        CHUNK_OVERLAP: ${CHUNK_OVERLAP}
     deploy:
       resources:
         reservations:

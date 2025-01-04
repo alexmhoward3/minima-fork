@@ -55,8 +55,8 @@ class Config:
     EMBEDDING_SIZE = os.environ.get("EMBEDDING_SIZE")
     RERANKER_MODEL = os.environ.get("RERANKER_MODEL")
     
-    CHUNK_SIZE = 500
-    CHUNK_OVERLAP = 200
+    CHUNK_SIZE = int(os.environ.get("CHUNK_SIZE"))
+    CHUNK_OVERLAP = int(os.environ.get("CHUNK_OVERLAP"))
 
 class Indexer:
     def __init__(self):

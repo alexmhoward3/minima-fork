@@ -12,7 +12,6 @@ This project aims to provide a tool for indexing and searching through documents
 ## How it should work
 The system should:
 - Index documents while preserving Obsidian-specific features:
-  - Internal links ([[note]]) for relationship mapping (requires regex parsing)
   - Tags (#tag) for content categorization
   - YAML frontmatter for structured metadata
   - Hierarchical tags for taxonomy
