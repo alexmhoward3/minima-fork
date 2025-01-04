@@ -176,9 +176,7 @@ class Indexer:
             # Process each document
             for doc in documents:
                 # Standardize file path
-                doc.metadata['file_path'] = loader.file_path
-                if 'path' in doc.metadata:
-                    del doc.metadata['path']
+                doc.metadata['file_path'] = doc.metadata['path']
 
                 # For Obsidian files, standardize metadata
                 if isinstance(loader, ObsidianLoader):
