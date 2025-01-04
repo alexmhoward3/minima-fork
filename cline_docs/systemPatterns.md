@@ -13,6 +13,8 @@ The system is built with a Python backend for indexing and a frontend for search
 - BAAI/bge-m3 integration for semantic reranking
 - HuggingFace embeddings pipeline for vector generation
 - Obsidian parser for extracting structured features
+- Improved metadata handling for relevance scoring
+- Deduplication of search results
 
 ## Architecture patterns
 - Microservices architecture for scalability

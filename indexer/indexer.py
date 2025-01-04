@@ -4,6 +4,7 @@ import torch
 import logging
 import fnmatch
 from dataclasses import dataclass
+from datetime import datetime
 from typing import List, Set, Dict, Optional
 from pathlib import Path
 
@@ -14,12 +15,14 @@ from qdrant_client.http.models import Distance, VectorParams
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from datetime import datetime
 from langchain_community.document_loaders import (
     TextLoader,
     CSVLoader,
     Docx2txtLoader,
     UnstructuredExcelLoader,
     PyMuPDFLoader,
+    ObsidianLoader,
 )
 
 
@@ -33,7 +36,7 @@ class Config:
         ".xls": UnstructuredExcelLoader,
         ".docx": Docx2txtLoader,
         ".txt": TextLoader,
-        ".md": TextLoader,
+        ".md": ObsidianLoader,
         ".csv": CSVLoader,
     }
     
@@ -147,15 +150,54 @@ class Indexer:
         return loader_class(file_path=file_path)
 
     def _process_file(self, loader) -> List[str]:
+        """Process a file and add it to the document store"""
         try:
-            documents = loader.load_and_split(self.text_splitter)
+            # First load documents with ObsidianLoader's built-in metadata handling
+            if isinstance(loader, ObsidianLoader):
+                documents = loader.load()
+            else:
+                documents = loader.load()
+                
+            # Split documents if needed
+            documents = self.text_splitter.split_documents(documents)
+            
             if not documents:
                 logger.warning(f"No documents loaded from {loader.file_path}")
                 return []
 
             for doc in documents:
+                # Get base metadata
                 doc.metadata['file_path'] = loader.file_path
+                
+                # For Obsidian files, handle metadata specially
+                if loader.file_path.endswith('.md'):
+                    # Create a set of tags from both inline and frontmatter
+                    tags = set()
+                    if 'tags' in doc.metadata:
+                        if isinstance(doc.metadata['tags'], str):
+                            tags.update(doc.metadata['tags'].split(','))
+                        elif isinstance(doc.metadata['tags'], (list, set)):
+                            tags.update(doc.metadata['tags'])
+                    
+                    # Convert timestamps to ISO format
+                    if 'created' in doc.metadata:
+                        doc.metadata['created_at'] = datetime.fromtimestamp(
+                            doc.metadata['created']
+                        ).isoformat()
+                    if 'last_modified' in doc.metadata:
+                        doc.metadata['modified_at'] = datetime.fromtimestamp(
+                            doc.metadata['last_modified']
+                        ).isoformat()
+                    
+                    # Update metadata with standardized format
+                    doc.metadata.update({
+                        "tags": list(tags) if tags else [],
+                        "source": doc.metadata.get('source', ''),
+                        "created_at": doc.metadata.get('created_at'),
+                        "modified_at": doc.metadata.get('modified_at')
+                    })
 
+            # Generate unique IDs for documents
             uuids = [str(uuid.uuid4()) for _ in range(len(documents))]
             ids = self.document_store.add_documents(documents=documents, ids=uuids)
             
@@ -198,9 +240,16 @@ class Indexer:
             # Rerank results if reranker is configured
             if self.reranker:
                 tokenizer, model = self.reranker
-                # Prepare pairs of (query, document) for reranking
-                pairs = [(query, doc.page_content) for doc in found]
-                inputs = tokenizer(pairs, padding=True, truncation=True, return_tensors="pt")
+                # Prepare pairs of (query, document) for reranking with proper separator
+                pairs = [(f"{query} [SEP] {doc.page_content}") for doc in found]
+                inputs = tokenizer(
+                    pairs,
+                    padding=True,
+                    truncation=True,
+                    return_tensors="pt",
+                    max_length=512,
+                    add_special_tokens=True
+                )
                 with torch.no_grad():
                     scores = model(**inputs).logits
                 # Sort documents by reranker scores
@@ -208,17 +257,59 @@ class Indexer:
             else:
                 sorted_docs = found
 
+            seen_contents = set()
+            unique_results = []
+            
             for item in sorted_docs:
                 path = item.metadata["file_path"].replace(
                     self.config.CONTAINER_PATH,
                     self.config.LOCAL_FILES_PATH
                 )
                 links.add(f"file://{path}")
-                results.append(item.page_content)
+                
+                # Skip duplicate content
+                if item.page_content in seen_contents:
+                    continue
+                seen_contents.add(item.page_content)
+                
+                # Calculate relevance score based on metadata
+                relevance_score = 1.0
+                metadata = item.metadata
+                
+                # Increase score for recent documents
+                if "modified_at" in metadata:
+                    try:
+                        modified_days = (datetime.now() - datetime.fromisoformat(metadata["modified_at"])).days
+                        relevance_score += max(0, (30 - modified_days) / 30)  # Recent documents get higher score
+                    except:
+                        pass
+                
+                # Increase score for documents with tags
+                if "tags" in metadata and len(metadata["tags"]) > 0:
+                    relevance_score += 0.5
+                
+                # Extract and include metadata if available
+                result = {
+                    "content": item.page_content,
+                    "metadata": {
+                        "tags": metadata.get("tags", []),
+                        "links": metadata.get("links", []),
+                        "created_at": metadata.get("created_at"),
+                        "modified_at": metadata.get("modified_at"),
+                        "frontmatter": metadata.get("frontmatter", {}),
+                        "relevance_score": relevance_score
+                    }
+                }
+                unique_results.append(result)
+
+            # Sort results by relevance score
+            unique_results.sort(key=lambda x: x["metadata"]["relevance_score"], reverse=True)
 
             output = {
                 "links": links,
-                "output": ". ".join(results)
+                "output": ". ".join([r["content"] for r in unique_results]),
+                "metadata": [r["metadata"] for r in unique_results],
+                "relevance_scores": [r["metadata"]["relevance_score"] for r in unique_results]
             }
             
             logger.info(f"Found {len(found)} results")

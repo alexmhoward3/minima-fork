@@ -1,28 +1,19 @@
 # Active Context
 
 ## What you're working on now
-Testing the BAAI/bge-m3 reranker implementation and analyzing its performance.
+Refining ObsidianLoader integration and metadata handling.
 
 ## Recent changes
-- Tested reranker performance with various query types:
-  - Technical system queries
-  - Semantic variations
-  - Cross-document queries
-- Identified key areas for improvement:
-  - Result deduplication needed
-  - Cross-document relevance could be enhanced
-  - Query result diversity could be increased
-
-- Fixed the .minimaignore implementation by making the path handling consistent within the container.
-  - The .minimaignore file is now loaded from the container path (/usr/src/app/local_files/) where the files are actually mounted.
-  - Path matching is done consistently using paths relative to the container mount point.
-  - Added debug logging to help troubleshoot pattern matching.
-  - Added better error handling for path operations.
+- Improved ObsidianLoader integration:
+  - Switched to using built-in metadata extraction
+  - Proper handling of tags from both frontmatter and inline
+  - Standardized timestamp handling with ISO format
+  - Removed redundant custom metadata extraction
+  - Better type checking for different metadata formats
+- Fixed document loading process:
+  - Proper document splitting after loading
+  - Preserved ObsidianLoader's metadata handling
+  - Improved error handling and logging
 
 ## Next steps
-Explore integration of Obsidian-specific features to enhance cross-document relevance:
-- Leverage internal links ([[note]]) for explicit relationships (requires regex parsing)
-- Use tags (#tag) for semantic grouping (working)
-- Extract YAML frontmatter for structured metadata
-- Implement backlink-based relevance scoring
-- Support hierarchical tag relationships (#parent/child)
+- Modify the reranker input to use proper separator tokens between the query and document content.

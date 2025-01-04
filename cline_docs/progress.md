@@ -1,18 +1,21 @@
 # Progress
 
 ## What works
-- Basic indexing functionality is working
-- The indexer.py properly ignores files in the .minimaignore file
-- BAAI/bge-m3 reranker implementation shows:
-  - Good semantic understanding
-  - Hardware acceleration support (MPS/CUDA/CPU)
-  - Integration with vector search infrastructure
+- Basic indexing functionality
+- File ignoring via .minimaignore
+- BAAI/bge-m3 reranker implementation
+- Improved ObsidianLoader integration:
+  - Built-in metadata extraction
+  - Tag parsing from frontmatter and inline
+  - Proper timestamp handling
+  - Standardized metadata format
+- Enhanced search with metadata relevance scoring
 
 ## What's left to build
-- Implement result deduplication
 - Improve cross-document relevance
 - Add diversity scoring for results
-- Fine-tune chunk parameters (currently 500/200)
+- Fine-tune chunk parameters
+- Optimize reranker token handling
 
 ## Progress status
-The project is in active development with reranker testing complete and improvements identified.
+The project has completed major improvements in metadata handling and document processing.
