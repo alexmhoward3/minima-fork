@@ -28,4 +28,4 @@ The system is built with a Python backend for indexing and a frontend for search
   - Internal links stored in payload (requires regex parsing)
   - Tags as filterable attributes
   - YAML frontmatter as structured payload
-  - Backlinks tracked in payload metadata
+  - Backlinks tracked in payload metadata (deferred for future implementation)

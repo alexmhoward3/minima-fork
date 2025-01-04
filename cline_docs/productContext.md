@@ -15,8 +15,8 @@ The system should:
   - Internal links ([[note]]) for relationship mapping (requires regex parsing)
   - Tags (#tag) for content categorization
   - YAML frontmatter for structured metadata
-  - Backlinks for reverse relationship tracking
   - Hierarchical tags for taxonomy
+  - Backlinks for reverse relationship tracking (deferred for future implementation)
 - Allow users to search using Obsidian syntax and features
 - Respect ignore files to prevent indexing of unwanted documents
 - Use document relationships to improve search relevance

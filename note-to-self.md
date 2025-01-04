@@ -11,11 +11,10 @@ npx -y @modelcontextprotocol/inspector uv --directory c:/Users/Alex/Documents/Pr
 This basically just parses frontmatter, tags and dataview (?). Capturing links in notes might have to be a parsing regex. 
 
 ## Next thing to try
-- implement ObsidianLoader, add tags and created/updated dates to qdrant payload
-- consider whether backlinks are necessary metadata, since they're already present in the note
-- play around with chunk size
-
-## possible future tasks
-Some good improvements in the roadmap doc.
-consider implementing openai embeddings
-create mcp tool to nuke the database and reindex
+- [x] implement ObsidianLoader, add tags and created/updated dates to qdrant payload
+- [x] consider whether backlinks are necessary metadata, since they're already present in the note
+  - decision: would add complexity to note parsing and not super useful in metadata. save this for another time, possibly with a knowledge graph.
+- [ ] play around with chunk size
+- [ ] the tool just returns one search result. how can we improve that?
+- [ ] consider implementing openai embeddings
+- [ ] create mcp tool to nuke the database and reindex

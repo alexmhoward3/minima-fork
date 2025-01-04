@@ -16,6 +16,7 @@
 - Add diversity scoring for results
 - Fine-tune chunk parameters
 - Optimize reranker token handling
+- Wikilink extraction still needs work.
 
 ## Progress status
 The project has completed major improvements in metadata handling and document processing.
