@@ -17,3 +17,4 @@ openpyxl
 docx2txt
 pymupdf
 pydantic
+python-dateutil

@@ -194,11 +194,27 @@ class Indexer:
                     for date_field in ['created', 'modified']:
                         if date_field in doc.metadata:
                             try:
-                                timestamp = doc.metadata[date_field]
-                                iso_date = datetime.fromtimestamp(timestamp).isoformat()
+                                value = doc.metadata[date_field]
+                                logger.info(f"Processing {date_field} with value '{value}' of type {type(value).__name__}")
+
+                                if isinstance(value, (int, float)):
+                                    # Handle Unix timestamp
+                                    iso_date = datetime.fromtimestamp(value).isoformat()
+                                elif isinstance(value, str):
+                                    # Try parsing ISO format or common date formats
+                                    try:
+                                        # First try ISO format
+                                        dt = datetime.fromisoformat(value)
+                                    except ValueError:
+                                        # If that fails, try common formats
+                                        import dateutil.parser
+                                        dt = dateutil.parser.parse(value)
+                                    iso_date = dt.isoformat()
+                                else:
+                                    continue
                                 doc.metadata[f'{date_field}_at'] = iso_date
-                            except (TypeError, ValueError) as e:
-                                logger.warning(f"Could not convert {date_field} timestamp: {e}")
+                            except Exception as e:
+                                logger.debug(f"Could not parse {date_field} value '{value}': {e}")
                     
                     # Update metadata in standardized format
                     doc.metadata.update({
