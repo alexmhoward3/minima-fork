@@ -1,4 +1,34 @@
-# Qdrant Payload Implementation Details (using Obsidian Markdown Parser)
+# Qdrant Payload Implementation Details (using LangChain ObsidianLoader)
+
+## Overview
+
+This implementation uses the LangChain ObsidianLoader, which is specifically designed to handle Obsidian's markdown format, including wikilinks, frontmatter, and tags.
+
+## Integration with Indexer
+
+The indexer's Config class is modified to use ObsidianLoader for .md files:
+
+```python
+from langchain_community.document_loaders import (
+    TextLoader,
+    CSVLoader,
+    Docx2txtLoader,
+    UnstructuredExcelLoader,
+    PyMuPDFLoader,
+    ObsidianLoader,  # Add ObsidianLoader
+)
+
+@dataclass
+class Config:
+    EXTENSIONS_TO_LOADERS = {
+        ".pdf": PyMuPDFLoader,
+        ".xls": UnstructuredExcelLoader,
+        ".docx": Docx2txtLoader,
+        ".txt": TextLoader,
+        ".md": ObsidianLoader,  # Use ObsidianLoader for markdown files
+        ".csv": CSVLoader,
+    }
+```
 
 ## Proposed Payload Schema
 
@@ -12,91 +42,136 @@ The Qdrant payload will be a JSON object with the following structure:
   "tags": ["tag1", "tag2"],
   "links": ["path/to/linked/note1.md", "path/to/linked/note2.md"],
   "created_at": "ISO timestamp",
-  "modified_at": "ISO timestamp"
+  "modified_at": "ISO timestamp",
+  "frontmatter": {
+    "key1": "value1",
+    "key2": "value2"
+  }
 }
 ```
 
 ## Metadata Extraction
 
-The following code snippets demonstrate how to extract metadata from Obsidian notes:
-
-### Metadata Extraction
-
-The following code snippets demonstrate how to extract metadata from Obsidian notes using the `Obsidian-Markdown-Parser` library:
+The LangChain ObsidianLoader automatically handles metadata extraction. Here's how it works with our system:
 
 ```python
-from src.Parser import Parser
-from src.YamlParser import YamlParser, YAML_METHOD
-import os
-import datetime
+from datetime import datetime
 import uuid
+from langchain_community.document_loaders import ObsidianLoader
+from typing import Dict, Any, List
 
-def extract_metadata(file_path):
-    parser = Parser(os.path.dirname(file_path))
-    file = next((f for f in parser.mdFiles if f.path == file_path), None)
-    if not file:
+def extract_metadata(file_path: str) -> Dict[str, Any]:
+    """
+    Extract metadata from an Obsidian note using LangChain's ObsidianLoader
+    """
+    # Initialize loader with metadata collection enabled
+    loader = ObsidianLoader(
+        path=file_path,
+        encoding="utf-8",
+        collect_metadata=True
+    )
+    
+    # Load document
+    docs = loader.load()
+    if not docs:
         return None
-
-    # Extract file path
-    file_path = file.path
-
-    # Generate chunk ID
-    chunk_id = str(uuid.uuid4())
-
-    # Extract heading (this requires reading the file content)
-    with open(file_path, 'r', encoding='utf-8') as f:
-        content = f.read()
-        heading = get_heading(content)
-
-    # Extract tags
-    tags = file.tags
-
-    # Extract links
-    links = file.links
-
-    # Extract timestamps
-    created_at = datetime.datetime.fromtimestamp(os.path.getctime(file_path)).isoformat()
-    modified_at = datetime.datetime.fromtimestamp(os.path.getmtime(file_path)).isoformat()
-
-    return {
-        "file_path": file_path,
-        "chunk_id": chunk_id,
-        "heading": heading,
-        "tags": list(tags),
-        "links": list(links),
-        "created_at": created_at,
-        "modified_at": modified_at
-    }
-
-def get_heading(text):
-    import re
-    match = re.search(r"^#+\s+(.*)$", text, re.MULTILINE)
-    if match:
-        return match.group(1).strip()
-    return None
+        
+    doc = docs[0]  # Get first document
+    metadata = doc.metadata
+    
+    # Add additional metadata
+    metadata.update({
+        "chunk_id": str(uuid.uuid4()),
+        "created_at": datetime.fromtimestamp(
+            os.path.getctime(file_path)
+        ).isoformat(),
+        "modified_at": datetime.fromtimestamp(
+            os.path.getmtime(file_path)
+        ).isoformat(),
+    })
+    
+    return metadata
 ```
 
 ## Document Relationship Tracking
 
-Document relationships will be tracked by storing links in the `links` field of the payload. A graph database or similar structure can be used to efficiently query these relationships.
+The ObsidianLoader automatically extracts wikilinks and other relationships. These are available in the metadata:
+
+```python
+def get_document_relationships(metadata: Dict[str, Any]) -> List[str]:
+    """
+    Extract document relationships from metadata
+    """
+    relationships = []
+    
+    # Get wikilinks
+    if "links" in metadata:
+        relationships.extend(metadata["links"])
+        
+    # Get note references
+    if "note_references" in metadata:
+        relationships.extend(metadata["note_references"])
+        
+    # Get embeds
+    if "embeds" in metadata:
+        relationships.extend(metadata["embeds"])
+        
+    return list(set(relationships))  # Remove duplicates
+```
 
 ## Payload-Based Scoring
 
-Payload fields will be used to boost or penalize search results. For example, results from recently modified notes could be boosted. The scoring function will be configurable by the user.
+The scoring system can take advantage of the rich metadata provided by ObsidianLoader:
 
 ```python
-def score_with_payload(vector_similarity, payload):
+from datetime import datetime, timedelta
+from typing import Dict, Any
+
+def score_with_payload(
+    vector_similarity: float,
+    payload: Dict[str, Any]
+) -> float:
+    """
+    Score search results based on vector similarity and metadata
+    """
     score = vector_similarity
-    # Example: boost score for recent notes
-    modified_at = datetime.datetime.fromisoformat(payload.get("modified_at"))
-    age = datetime.datetime.now() - modified_at
-    if age < datetime.timedelta(days=7):
+    
+    # Boost based on recency
+    modified_at = datetime.fromisoformat(payload.get("modified_at"))
+    age = datetime.now() - modified_at
+    if age < timedelta(days=7):
         score += 0.2
+        
+    # Boost based on tag matches (example)
+    query_tags = set(["important", "todo"])  # Example tags
+    doc_tags = set(payload.get("tags", []))
+    matching_tags = query_tags.intersection(doc_tags)
+    score += len(matching_tags) * 0.1
+        
+    # Boost based on front matter properties
+    frontmatter = payload.get("frontmatter", {})
+    if frontmatter.get("priority") == "high":
+        score += 0.3
+        
     return score
 ```
 
+## Benefits Over Previous Implementation
+
+1. **Native Obsidian Support**: LangChain's ObsidianLoader is specifically designed for Obsidian's markdown format.
+2. **Automatic Feature Detection**: Handles wikilinks, tags, and frontmatter without custom parsing.
+3. **Maintained Integration**: Regular updates through the LangChain community.
+4. **Robust Parsing**: Better handling of Obsidian's extended markdown syntax.
+
 ## Key Functions
 
-- `extract_metadata(file_path, text)`: Extracts all metadata from a given file path and text content.
-- `create_payload(file_path, text)`: Creates a Qdrant payload from the extracted metadata.
+- `extract_metadata(file_path)`: Uses ObsidianLoader to extract all metadata.
+- `get_document_relationships(metadata)`: Extracts relationship information from metadata.
 - `score_with_payload(vector_similarity, payload)`: Scores search results based on vector similarity and payload data.
+
+## Future Enhancements
+
+1. Add support for Obsidian callouts
+2. Implement graph-based search using document relationships
+3. Add custom scoring based on frontmatter properties
+4. Support for dataview metadata
