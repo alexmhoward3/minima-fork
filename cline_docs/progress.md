@@ -14,9 +14,8 @@
 ## What's left to build
 - Improve cross-document relevance
 - Add diversity scoring for results
-- Fine-tune chunk parameters
+- Chunk parameters are now configurable via environment variables
 - Optimize reranker token handling
-- Wikilink extraction still needs work.
 
 ## Progress status
 The project has completed major improvements in metadata handling and document processing.

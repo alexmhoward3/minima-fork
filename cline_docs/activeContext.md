@@ -1,7 +1,7 @@
 # Active Context
 
 ## What you're working on now
-Refining ObsidianLoader integration and metadata handling.
+Chunking strategy
 
 ## Recent changes
 - Improved ObsidianLoader integration:
@@ -17,7 +17,5 @@ Refining ObsidianLoader integration and metadata handling.
 - Modified the `file_path` metadata to correctly include the full file path and filename.
 
 ## Next steps
-- Decision made to not include backlinks in node metadata for now due to complexity and performance concerns. Will revisit if needed.
+- Implement H2-based chunking strategy
 - Modify the reranker input to use proper separator tokens between the query and document content.
-- Wikilink extraction still needs work.
-- Decision made to use a fixed chunk size of 1500 characters with an overlap of 200 characters as a starting point. This approach provides a balance between simplicity and effectiveness, and will be re-evaluated as needed. Shorter notes will be handled by creating chunks that are shorter than the maximum size, without any padding.
