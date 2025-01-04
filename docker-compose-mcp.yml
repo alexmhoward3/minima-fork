@@ -27,6 +27,7 @@ services:
         RERANKER_MODEL: ${RERANKER_MODEL}
         CHUNK_SIZE: ${CHUNK_SIZE}
         CHUNK_OVERLAP: ${CHUNK_OVERLAP}
+        CHUNK_STRATEGY: ${CHUNK_STRATEGY}
     deploy:
       resources:
         reservations:

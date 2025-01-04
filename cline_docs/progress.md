@@ -10,11 +10,11 @@
   - Proper timestamp handling
   - Standardized metadata format
 - Enhanced search with metadata relevance scoring
+- Configurable chunking strategy (size, overlap, character or H2)
 
 ## What's left to build
 - Improve cross-document relevance
 - Add diversity scoring for results
-- Chunk parameters are now configurable via environment variables
 - Optimize reranker token handling
 
 ## Progress status

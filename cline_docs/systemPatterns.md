@@ -9,7 +9,7 @@ The system is built with a Python backend for indexing and a frontend for search
   - Payload storage for Obsidian features
   - Custom scoring for relationship weighting
 - Adaptive hardware acceleration (MPS -> CUDA -> CPU fallback)
-- Document chunking strategy with Obsidian syntax preservation, chunk size and overlap configurable via environment variables
+- Document chunking strategy with Obsidian syntax preservation, chunk size, overlap, and strategy (character or H2) configurable via environment variables
 - BAAI/bge-m3 integration for semantic reranking
 - HuggingFace embeddings pipeline for vector generation
 - Obsidian parser for extracting structured features

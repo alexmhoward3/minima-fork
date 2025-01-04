@@ -115,10 +115,18 @@ class Indexer:
         )
 
     def _initialize_text_splitter(self) -> RecursiveCharacterTextSplitter:
-        return RecursiveCharacterTextSplitter(
-            chunk_size=self.config.CHUNK_SIZE,
-            chunk_overlap=self.config.CHUNK_OVERLAP
-        )
+        if os.environ.get("CHUNK_STRATEGY") == "h2":
+            from langchain.text_splitter import MarkdownHeaderTextSplitter
+            headers_to_split_on = [
+                ("#", "Header 1"),
+                ("##", "Header 2"),
+            ]
+            return MarkdownHeaderTextSplitter(headers_to_split_on=headers_to_split_on)
+        else:
+            return RecursiveCharacterTextSplitter(
+                chunk_size=self.config.CHUNK_SIZE,
+                chunk_overlap=self.config.CHUNK_OVERLAP
+            )
 
     def _setup_collection(self) -> QdrantVectorStore:
         if not self.qdrant.collection_exists(self.config.QDRANT_COLLECTION):
@@ -165,13 +173,24 @@ class Indexer:
             else:
                 documents = loader.load()
                 
-            # Split documents if any were loaded
-            if documents:
-                documents = self.text_splitter.split_documents(documents)
-            
             if not documents:
                 logger.warning(f"No documents loaded from {loader.file_path}")
                 return []
+            if not documents:
+                logger.warning(f"No documents loaded from {loader.file_path}")
+                return []
+            if os.environ.get("CHUNK_STRATEGY") == "h2":
+                new_documents = []
+                for doc in documents:
+                    split_docs = self.text_splitter.split_text(doc.page_content)
+                    for split_doc in split_docs:
+                        new_doc = type(doc)(page_content=split_doc, metadata=doc.metadata)
+                        new_documents.append(new_doc)
+                documents = new_documents
+            else:
+                # Split documents if any were loaded
+                if documents:
+                    documents = self.text_splitter.split_documents(documents)
 
             # Process each document
             for doc in documents:
