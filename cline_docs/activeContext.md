@@ -20,4 +20,4 @@ Refining ObsidianLoader integration and metadata handling.
 - Decision made to not include backlinks in node metadata for now due to complexity and performance concerns. Will revisit if needed.
 - Modify the reranker input to use proper separator tokens between the query and document content.
 - Wikilink extraction still needs work.
-- Need to figure out the most appropriate chunk size for documents.
+- Decision made to use a fixed chunk size of 1500 characters with an overlap of 200 characters as a starting point. This approach provides a balance between simplicity and effectiveness, and will be re-evaluated as needed. Shorter notes will be handled by creating chunks that are shorter than the maximum size, without any padding.
