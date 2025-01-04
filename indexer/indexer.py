@@ -147,57 +147,69 @@ class Indexer:
         if not loader_class:
             raise ValueError(f"Unsupported file type: {file_extension}")
         
+        # Special handling for ObsidianLoader
+        if loader_class == ObsidianLoader:
+            directory = str(Path(file_path).parent)
+            return ObsidianLoader(
+                directory,
+                encoding="utf-8",
+                collect_metadata=True
+            )
+        
         return loader_class(file_path=file_path)
 
     def _process_file(self, loader) -> List[str]:
         """Process a file and add it to the document store"""
         try:
-            # First load documents with ObsidianLoader's built-in metadata handling
+            # Load documents based on loader type
             if isinstance(loader, ObsidianLoader):
                 documents = loader.load()
             else:
                 documents = loader.load()
                 
-            # Split documents if needed
-            documents = self.text_splitter.split_documents(documents)
+            # Split documents if any were loaded
+            if documents:
+                documents = self.text_splitter.split_documents(documents)
             
             if not documents:
                 logger.warning(f"No documents loaded from {loader.file_path}")
                 return []
 
+            # Process each document
             for doc in documents:
-                # Get base metadata
+                # Add base file path
                 doc.metadata['file_path'] = loader.file_path
                 
-                # For Obsidian files, handle metadata specially
-                if loader.file_path.endswith('.md'):
-                    # Create a set of tags from both inline and frontmatter
+                # For Obsidian files, standardize metadata
+                if isinstance(loader, ObsidianLoader):
+                    # Handle tags from both frontmatter and inline
                     tags = set()
                     if 'tags' in doc.metadata:
                         if isinstance(doc.metadata['tags'], str):
-                            tags.update(doc.metadata['tags'].split(','))
+                            tags.update(tag.strip() for tag in doc.metadata['tags'].split(','))
                         elif isinstance(doc.metadata['tags'], (list, set)):
                             tags.update(doc.metadata['tags'])
                     
-                    # Convert timestamps to ISO format
-                    if 'created' in doc.metadata:
-                        doc.metadata['created_at'] = datetime.fromtimestamp(
-                            doc.metadata['created']
-                        ).isoformat()
-                    if 'last_modified' in doc.metadata:
-                        doc.metadata['modified_at'] = datetime.fromtimestamp(
-                            doc.metadata['last_modified']
-                        ).isoformat()
+                    # Standardize dates
+                    for date_field in ['created', 'modified']:
+                        if date_field in doc.metadata:
+                            try:
+                                timestamp = doc.metadata[date_field]
+                                iso_date = datetime.fromtimestamp(timestamp).isoformat()
+                                doc.metadata[f'{date_field}_at'] = iso_date
+                            except (TypeError, ValueError) as e:
+                                logger.warning(f"Could not convert {date_field} timestamp: {e}")
                     
-                    # Update metadata with standardized format
+                    # Update metadata in standardized format
                     doc.metadata.update({
-                        "tags": list(tags) if tags else [],
-                        "source": doc.metadata.get('source', ''),
+                        "tags": list(tags),
+                        "links": doc.metadata.get('links', []),
                         "created_at": doc.metadata.get('created_at'),
-                        "modified_at": doc.metadata.get('modified_at')
+                        "modified_at": doc.metadata.get('modified_at'),
+                        "frontmatter": doc.metadata.get('frontmatter', {})
                     })
 
-            # Generate unique IDs for documents
+            # Generate IDs and add to store
             uuids = [str(uuid.uuid4()) for _ in range(len(documents))]
             ids = self.document_store.add_documents(documents=documents, ids=uuids)
             
