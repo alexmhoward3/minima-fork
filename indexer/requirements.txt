@@ -18,3 +18,4 @@ docx2txt
 pymupdf
 pydantic
 python-dateutil
+tenacity>=8.0.0

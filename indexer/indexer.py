@@ -3,6 +3,8 @@ import uuid
 import torch
 import logging
 import fnmatch
+import time
+from tenacity import retry, stop_after_attempt, wait_exponential
 from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Set, Dict, Optional
@@ -105,7 +107,20 @@ class Indexer:
             return False
 
     def _initialize_qdrant(self) -> QdrantClient:
-        return QdrantClient(host=self.config.QDRANT_BOOTSTRAP)
+        """Initialize Qdrant client with retry logic"""
+        @retry(stop=stop_after_attempt(10), wait=wait_exponential(multiplier=2, min=4, max=30))
+        def connect_with_retry():
+            try:
+                client = QdrantClient(host=self.config.QDRANT_BOOTSTRAP)
+                # Test the connection
+                client.get_collections()
+                return client
+            except Exception as e:
+                logger.warning(f"Failed to connect to Qdrant, retrying... Error: {str(e)}")
+                raise e
+
+        logger.info("Attempting to connect to Qdrant...")
+        return connect_with_retry()
 
     def _initialize_embeddings(self) -> HuggingFaceEmbeddings:
         return HuggingFaceEmbeddings(
