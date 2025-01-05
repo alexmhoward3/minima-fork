@@ -8,7 +8,7 @@ set QDRANT_HOST=localhost; set QDRANT_PORT=6333; set START_INDEXING=true; set CO
 npx -y @modelcontextprotocol/inspector uv --directory c:/Users/Alex/Documents/Projects/minima-fork/mcp-server run minima
 
 ## Notes
-Twice now claude has recommended a healthcheck and separate Dockerfile with curl for qdrant. I've allowed this, because it came up twice. Update: ended up deleting this 
+Twice now claude has recommended a healthcheck and separate Dockerfile with curl for qdrant and health check.probably a good idea because it can take a few minutes to start the qdrant server
 
 ## Next thing to try
 - [x] implement ObsidianLoader, add tags and created/updated dates to qdrant payload
@@ -16,6 +16,8 @@ Twice now claude has recommended a healthcheck and separate Dockerfile with curl
   - decision: would add complexity to note parsing and not super useful in metadata. save this for another time, possibly with a knowledge graph.
 - [x] play around with chunk size
 - [x] hmm not pointing to vault, even though local files variable is set
+- [ ] back up storage. it's completed indexing. 
+- [x] re-think chunking we're at a huge storage size (20-ish gigs). Update: moved it to F drive
 - [ ] how does the reranker work in the minima indexer > qdrant vector store > mcp query workflow?
 - [ ] consider adding a progress bar to indexing
 - [ ] the tool just returns one search result. how can we improve that?
