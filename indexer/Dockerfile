@@ -1,38 +1,52 @@
 FROM python:3.9-slim
 
-RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+# Install build dependencies and clean up in one layer
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src/app
-RUN apt-get update && apt-get install -y git
 
-ARG EMBEDDING_MODEL_ID
+# Install Python packages in one layer
+RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Set environment variables
+ENV PORT=8000 \
+    CURRENT_HOST=0.0.0.0 \
+    WORKERS=1
+
 ARG START_INDEXING
-ARG RERANKER_MODEL
 ARG CHUNK_SIZE
 ARG CHUNK_OVERLAP
 ARG CHUNK_STRATEGY
+ARG TOP_K=3
+ARG EMBEDDING_MODEL_ID
+ARG RERANKER_MODEL
 
-RUN pip install huggingface_hub
-RUN huggingface-cli download $EMBEDDING_MODEL_ID --repo-type model
-RUN huggingface-cli download $RERANKER_MODEL --repo-type model
+ENV START_INDEXING=${START_INDEXING} \
+    CHUNK_SIZE=${CHUNK_SIZE} \
+    CHUNK_OVERLAP=${CHUNK_OVERLAP} \
+    CHUNK_STRATEGY=${CHUNK_STRATEGY} \
+    TOP_K=${TOP_K}
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-COPY . .
-
-ENV START_INDEXING=${START_INDEXING}
-RUN echo "START_INDEXING is $START_INDEXING"
-
-ENV CHUNK_SIZE=${CHUNK_SIZE}
-ENV CHUNK_OVERLAP=${CHUNK_OVERLAP}
-ENV CHUNK_STRATEGY=${CHUNK_STRATEGY}
-
-ENV PORT=8000
-ENV CURRENT_HOST=0.0.0.0
-ENV WORKERS=1
+# Download models during image build
+RUN pip install --no-cache-dir huggingface_hub && \
+    python -c "from huggingface_hub import snapshot_download; \
+    snapshot_download('${EMBEDDING_MODEL_ID}', repo_type='model'); \
+    snapshot_download('${RERANKER_MODEL}', repo_type='model')"
 
 # Create entrypoint script
 RUN echo '#!/bin/bash\n\
+echo "Environment variables:"\n\
+echo "TOP_K=$TOP_K"\n\
+echo "START_INDEXING=$START_INDEXING"\n\
+echo "CHUNK_SIZE=$CHUNK_SIZE"\n\
+echo "CHUNK_OVERLAP=$CHUNK_OVERLAP"\n\
 if python -c "import torch; print(torch.cuda.is_available())" 2>/dev/null | grep -q "True"; then\n\
     echo "GPU detected, using CUDA"\n\
     export DEVICE="cuda"\n\

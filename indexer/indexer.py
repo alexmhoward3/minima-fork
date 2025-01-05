@@ -41,10 +41,10 @@ class Config:
     }
     
     DEVICE = torch.device(
-        "cuda" if torch.cuda.is_available() else
         "mps" if torch.backends.mps.is_available() else
+        "cuda" if torch.cuda.is_available() else
         "cpu"
-    )
+    )  # Prioritize MPS for MacBook
     
     START_INDEXING = os.environ.get("START_INDEXING")
     LOCAL_FILES_PATH = os.environ.get("LOCAL_FILES_PATH")
@@ -57,6 +57,8 @@ class Config:
     
     CHUNK_SIZE = int(os.environ.get("CHUNK_SIZE"))
     CHUNK_OVERLAP = int(os.environ.get("CHUNK_OVERLAP"))
+    # Default to 3 results if not specified
+    TOP_K = int(os.environ.get("TOP_K", "3"))
 
 class Indexer:
     def __init__(self):
@@ -268,7 +270,11 @@ class Indexer:
         except Exception as e:
             logger.error(f"Failed to index file {path}: {str(e)}")
 
-    def find(self, query: str, top_k: int = 1) -> Dict[str, any]:
+    def find(self, query: str, top_k: int = None) -> Dict[str, any]:
+        # Use class config TOP_K if not specified
+        if top_k is None:
+            top_k = self.config.TOP_K
+
         try:
             logger.info(f"Searching for: {query}")
             found = self.document_store.search(query, search_type="similarity", k=top_k)
@@ -348,10 +354,13 @@ class Indexer:
             unique_results.sort(key=lambda x: x["metadata"]["relevance_score"], reverse=True)
 
             output = {
-                "links": links,
-                "output": ". ".join([r["content"] for r in unique_results]),
-                "metadata": [r["metadata"] for r in unique_results],
-                "relevance_scores": [r["metadata"]["relevance_score"] for r in unique_results]
+                "results": [{
+                    "content": r["content"],
+                    "metadata": r["metadata"],
+                    "relevance_score": r["metadata"]["relevance_score"],
+                    "link": next(iter(links)) if links else None
+                } for r in unique_results[0:top_k]]
+                
             }
             
             logger.info(f"Found {len(found)} results")

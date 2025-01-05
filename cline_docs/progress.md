@@ -1,6 +1,11 @@
 # Progress
 
 ## What works
+- Configurable search results with TOP_K parameter:
+  - Environment variable configuration
+  - Multiple result handling
+  - Enhanced result formatting
+  - Metadata and relevance scoring for each result
 - Basic indexing functionality
 - File ignoring via .minimaignore
 - BAAI/bge-m3 reranker implementation
@@ -18,4 +23,4 @@
 - Optimize reranker token handling
 
 ## Progress status
-The project has completed major improvements in metadata handling and document processing.
+The project has completed major improvements in metadata handling, document processing, and search result configuration. The addition of TOP_K enables more flexible and comprehensive search results.

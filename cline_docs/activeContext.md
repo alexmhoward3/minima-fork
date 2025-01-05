@@ -1,9 +1,16 @@
 # Active Context
 
 ## What you're working on now
-Chunking strategy
+Implementing TOP_K variable for multiple search results
 
 ## Recent changes
+- Implemented TOP_K configuration:
+  - Added TOP_K environment variable (defaults to 3)
+  - Updated indexer to support multiple search results
+  - Modified server response format to handle multiple results
+  - Enhanced result output with content, metadata, and links
+  - Added proper error handling for the new format
+
 - Improved ObsidianLoader integration:
   - Switched to using built-in metadata extraction
   - Proper handling of tags from both frontmatter and inline
@@ -18,4 +25,6 @@ Chunking strategy
 - Implemented H2-based chunking strategy with 800 chunk size and 100 overlap (selected via .env)
 
 ## Next steps
+- Test TOP_K functionality with various configurations
+- Consider adding sorting/filtering options for multiple results
 - Modify the reranker input to use proper separator tokens between the query and document content.

@@ -2,7 +2,8 @@ import os
 import logging
 import asyncio
 from indexer import Indexer
-from pydantic import BaseModel
+from typing import Annotated, Optional
+from pydantic import BaseModel, Field
 from async_queue import AsyncQueue
 from fastapi import FastAPI, APIRouter
 from contextlib import asynccontextmanager
@@ -19,17 +20,23 @@ router = APIRouter()
 
 class Query(BaseModel):
     query: str
+    top_k: Optional[int] = None  # Optional parameter
 
 @router.post(
     "/query", 
     response_description='Query local data storage',
 )
 async def query(request: Query):
-    logger.info(f"Received query: {query}")
+    logger.info(f"Received query: {request.query} with top_k={request.top_k}")
     try:
-        result = indexer.find(request.query)
-        logger.info(f"Found {len(result)} results for query: {query}")
+        result = indexer.find(request.query, top_k=request.top_k)
+        logger.info(f"Found {len(result)} results")
         logger.info(f"Results: {result}")
+        
+        # Limit results to top_k
+        if request.top_k is not None and len(result) > request.top_k:
+            result = result[:request.top_k]
+
         return {"result": result}
     except Exception as e:
         logger.error(f"Error in processing query: {e}")
@@ -65,7 +72,6 @@ async def lifespan(app: FastAPI):
             task.cancel()
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
-
 
 def create_app() -> FastAPI:
     app = FastAPI(

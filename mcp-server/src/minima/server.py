@@ -91,11 +91,26 @@ async def call_tool(name, arguments: dict) -> list[TextContent]:
         raise McpError(INTERNAL_ERROR, output["error"])
     
     logging.info(f"Get prompt: {output}")    
-    output = output['result']['output']
-    #links = output['result']['links']
-    result = []
-    result.append(TextContent(type="text", text=output))
-    return result
+    if 'result' not in output or 'results' not in output['result']:
+        logging.error("Unexpected response format")
+        raise McpError(INTERNAL_ERROR, "Unexpected response format")
+
+    results = output['result']['results']
+    output_texts = []
+
+    # Format each result
+    for idx, result in enumerate(results, 1):
+        result_text = f"Result {idx}:\n"
+        result_text += f"Content: {result['content']}\n"
+        result_text += f"Relevance Score: {result['relevance_score']}\n"
+        if result.get('link'):
+            result_text += f"Source: {result['link']}\n"
+        if result.get('metadata', {}).get('tags'):
+            result_text += f"Tags: {', '.join(result['metadata']['tags'])}\n"
+        result_text += "---\n"
+        output_texts.append(TextContent(type="text", text=result_text))
+
+    return output_texts
     
 @server.get_prompt()
 async def get_prompt(name: str, arguments: dict | None) -> GetPromptResult:
