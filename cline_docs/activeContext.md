@@ -15,7 +15,7 @@ Chunking strategy
   - Preserved ObsidianLoader's metadata handling
   - Improved error handling and logging
 - Modified the `file_path` metadata to correctly include the full file path and filename.
-- Implemented H2-based chunking strategy
+- Implemented H2-based chunking strategy with 800 chunk size and 100 overlap (selected via .env)
 
 ## Next steps
 - Modify the reranker input to use proper separator tokens between the query and document content.

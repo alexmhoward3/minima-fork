@@ -15,7 +15,7 @@ This basically just parses frontmatter, tags and dataview (?). Capturing links i
 - [x] consider whether backlinks are necessary metadata, since they're already present in the note
   - decision: would add complexity to note parsing and not super useful in metadata. save this for another time, possibly with a knowledge graph.
 - [x] play around with chunk size
-- [ ] hmm not pointing to vault, even though local files variable is set
+- [x] hmm not pointing to vault, even though local files variable is set
 - [ ] how does the reranker work in the minima indexer > qdrant vector store > mcp query workflow?
 - [ ] the tool just returns one search result. how can we improve that?
   - i want to improve the tools available in @/mcp-server/ . First, the tool only allows a single search result. can we implement a TOP_K variable that allows the user the ability to set the number, ex TOP_K=3
