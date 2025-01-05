@@ -1,10 +1,10 @@
-**Minima-fork** is an open source RAG on-premises container, with MCP access.
-Minima can be used as a fully local RAG.
+**VaultRAG** is an open source RAG on-premises container, with MCP access.
+VaultRAG can be used as a fully local RAG.
 
-Minima currently supports two modes:
+VaultRAG currently supports two modes:
 1. Isolated installation – Operate fully on-premises with containers. All neural networks (reranker, embedding) run on your cloud or PC, ensuring your data remains secure.
 
-2. Anthropic Claude – Use Anthropic Claude app to query your local documents. The indexer operates on your local PC, while Anthropic Claude serves as the primary LLM.
+2. Claude MCP – Use Anthropic Claude app to query your local documents via Model Context Protocol (MCP). The indexer operates on your local PC, while Anthropic Claude serves as the primary LLM.
 
 **For MCP usage, please be sure that your local machines python is >=3.10 and 'uv' installed.**
 
@@ -17,6 +17,9 @@ Minima currently supports two modes:
    <li> EMBEDDING_SIZE </li>
    <li> START_INDEXING </li>
    <li> RERANKER_MODEL </li>
+   <li> CHUNK_SIZE </li>
+   <li> CHUNK_OVERLAP </li>
+   <li> CHUNK_STRATEGY </li>
 </ul>
 
 1. For MCP integration (Anthropic Desktop app usage): **docker compose -f docker-compose-mcp.yml --env-file .env up --build**.
@@ -68,3 +71,44 @@ EMBEDDING_SIZE=768
 START_INDEXING=false # true on the first run for indexing
 ```
 For the Claude app, please apply the changes to the claude_desktop_config.json file as outlined above.
+
+## Recent Changes
+- Improved ObsidianLoader integration:
+  - Switched to using built-in metadata extraction
+  - Proper handling of tags from both frontmatter and inline
+  - Standardized timestamp handling with ISO format
+  - Removed redundant custom metadata extraction
+  - Better type checking for different metadata formats
+- Fixed document loading process:
+  - Proper document splitting after loading
+  - Preserved ObsidianLoader's metadata handling
+  - Improved error handling and logging
+- Modified the `file_path` metadata to correctly include the full file path and filename.
+- Implemented H2-based chunking strategy with 800 chunk size and 100 overlap (selected via .env)
+
+## What works
+- Basic indexing functionality
+- File ignoring via .minimaignore
+- BAAI/bge-m3 reranker implementation
+- Improved ObsidianLoader integration:
+  - Built-in metadata extraction
+  - Tag parsing from frontmatter and inline
+  - Proper timestamp handling
+  - Standardized metadata format
+- Enhanced search with metadata relevance scoring
+- Configurable chunking strategy (size, overlap, character or H2)
+
+## What's left to build
+- Improve cross-document relevance
+- Add diversity scoring for results
+- Optimize reranker token handling
+
+## Technologies used
+- Python backend with:
+  - LangChain for document loading and parsing
+  - ObsidianLoader for Markdown/Obsidian handling
+  - HuggingFace transformers
+- Docker for containerization
+- Qdrant vector database with payload support
+- BAAI/bge-m3 reranker model
+- GPU acceleration frameworks (MPS/CUDA)
