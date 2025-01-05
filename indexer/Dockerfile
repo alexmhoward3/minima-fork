@@ -1,4 +1,6 @@
-FROM pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime
+FROM python:3.9-slim
+
+RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 
 WORKDIR /usr/src/app
 RUN apt-get update && apt-get install -y git
@@ -25,8 +27,20 @@ ENV CHUNK_SIZE=${CHUNK_SIZE}
 ENV CHUNK_OVERLAP=${CHUNK_OVERLAP}
 ENV CHUNK_STRATEGY=${CHUNK_STRATEGY}
 
-ENV PORT 8000
-ENV CURRENT_HOST 0.0.0.0
-ENV WORKERS 1
+ENV PORT=8000
+ENV CURRENT_HOST=0.0.0.0
+ENV WORKERS=1
 
-CMD ["sh", "-c", "uvicorn app:app --loop asyncio --reload --workers ${WORKERS} --host $CURRENT_HOST --port $PORT --proxy-headers"]
+# Create entrypoint script
+RUN echo '#!/bin/bash\n\
+if python -c "import torch; print(torch.cuda.is_available())" 2>/dev/null | grep -q "True"; then\n\
+    echo "GPU detected, using CUDA"\n\
+    export DEVICE="cuda"\n\
+else\n\
+    echo "No GPU detected, using CPU"\n\
+    export DEVICE="cpu"\n\
+fi\n\
+uvicorn app:app --loop asyncio --reload --workers ${WORKERS} --host $CURRENT_HOST --port $PORT --proxy-headers' > /entrypoint.sh && \
+    chmod +x /entrypoint.sh
+
+CMD ["/entrypoint.sh"]

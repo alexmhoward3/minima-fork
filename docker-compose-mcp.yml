@@ -28,13 +28,6 @@ services:
         CHUNK_SIZE: ${CHUNK_SIZE}
         CHUNK_OVERLAP: ${CHUNK_OVERLAP}
         CHUNK_STRATEGY: ${CHUNK_STRATEGY}
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
     volumes:
       - ${LOCAL_FILES_PATH}:/usr/src/app/local_files/
       - ./indexer:/usr/src/app

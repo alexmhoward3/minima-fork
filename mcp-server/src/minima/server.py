@@ -36,6 +36,10 @@ class Query(BaseModel):
         str, 
         Field(description="context to find")
     ]
+    top_k: Annotated[
+        int, 
+        Field(description="number of results to return", default=1)
+    ] = 1
 
 @server.list_tools()
 async def list_tools() -> list[Tool]:
@@ -81,7 +85,7 @@ async def call_tool(name, arguments: dict) -> list[TextContent]:
         logging.error("Context is required")
         raise McpError(INVALID_PARAMS, "Context is required")
 
-    output = await request_data(context)
+    output = await request_data(context, args.top_k)
     if "error" in output:
         logging.error(output["error"])
         raise McpError(INTERNAL_ERROR, output["error"])

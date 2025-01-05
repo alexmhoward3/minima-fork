@@ -41,8 +41,8 @@ class Config:
     }
     
     DEVICE = torch.device(
-        "mps" if torch.backends.mps.is_available() else
         "cuda" if torch.cuda.is_available() else
+        "mps" if torch.backends.mps.is_available() else
         "cpu"
     )
     
@@ -268,10 +268,10 @@ class Indexer:
         except Exception as e:
             logger.error(f"Failed to index file {path}: {str(e)}")
 
-    def find(self, query: str) -> Dict[str, any]:
+    def find(self, query: str, top_k: int = 1) -> Dict[str, any]:
         try:
             logger.info(f"Searching for: {query}")
-            found = self.document_store.search(query, search_type="similarity")
+            found = self.document_store.search(query, search_type="similarity", k=top_k)
             
             if not found:
                 logger.info("No results found")

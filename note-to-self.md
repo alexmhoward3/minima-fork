@@ -18,7 +18,8 @@ This basically just parses frontmatter, tags and dataview (?). Capturing links i
 - [x] hmm not pointing to vault, even though local files variable is set
 - [ ] how does the reranker work in the minima indexer > qdrant vector store > mcp query workflow?
 - [ ] consider adding a progress bar to indexing
-- [ ] the tool just returns one search result. how can we improve that?
+- [ ] STARTING THIS: the tool just returns one search result. how can we improve that?
   - i want to improve the tools available in @/mcp-server/ . First, the tool only allows a single search result. can we implement a TOP_K variable that allows the user the ability to set the number, ex TOP_K=3
 - [ ] consider implementing openai embeddings
+- [ ] update the tool description to clearly state what the tool does - it currently has a generic "search local pdfs, txt, markdown etc". Something like "Semantic search across the users Obsidian notes."
 - [ ] create mcp tool to nuke the database and reindex

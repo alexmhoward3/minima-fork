@@ -11,9 +11,10 @@ REQUEST_HEADERS = {
     'Content-Type': 'application/json'
 }
 
-async def request_data(query):
+async def request_data(query, top_k=1):
     payload = {
-        "query": query
+        "query": query,
+        "top_k": top_k
     }
     async with httpx.AsyncClient() as client:
         try:
