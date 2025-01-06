@@ -25,9 +25,7 @@ from langchain_community.document_loaders import (
     ObsidianLoader,
 )
 
-
 logger = logging.getLogger(__name__)
-
 
 @dataclass
 class Config:
@@ -69,13 +67,8 @@ class Indexer:
         self.reranker = self._initialize_reranker()
         
     def _initialize_reranker(self):
-        if not self.config.RERANKER_MODEL:
-            return None
-            
-        logger.info(f"Initializing reranker model: {self.config.RERANKER_MODEL}")
-        tokenizer = AutoTokenizer.from_pretrained(self.config.RERANKER_MODEL)
-        model = AutoModelForSequenceClassification.from_pretrained(self.config.RERANKER_MODEL)
-        return (tokenizer, model)
+        # Disable reranker to get all results
+        return None
 
     def _load_ignore_patterns(self) -> List[str]:
         """Load patterns from .minimaignore file if it exists"""
@@ -167,15 +160,9 @@ class Indexer:
     def _process_file(self, loader) -> List[str]:
         """Process a file and add it to the document store"""
         try:
-            # Load documents based on loader type
-            if isinstance(loader, ObsidianLoader):
-                documents = loader.load()
-            else:
-                documents = loader.load()
+            # Load documents
+            documents = loader.load()
                 
-            if not documents:
-                logger.warning(f"No documents loaded from {loader.file_path}")
-                return []
             if not documents:
                 logger.warning(f"No documents loaded from {loader.file_path}")
                 return []
@@ -271,95 +258,84 @@ class Indexer:
     def find(self, query: str) -> Dict[str, any]:
         try:
             logger.info(f"Searching for: {query}")
-            found = self.document_store.search(query, search_type="similarity")
+            # Convert query to vector
+            query_vector = self.embed_model.embed_query(query)
             
-            if not found:
+            # Search using raw Qdrant client
+            search_result = self.qdrant.search(
+                collection_name=self.config.QDRANT_COLLECTION,
+                query_vector=query_vector,
+                limit=50,  # Get more results
+                with_payload=True,  # Get metadata
+                search_params={
+                    "exact": False,  # Use approximate search
+                    "hnsw_ef": 128  # Increase accuracy
+                }
+            )
+            
+            if not search_result:
                 logger.info("No results found")
                 return {"links": set(), "output": ""}
+
+            # Group results by file path to avoid duplicates from same file
+            results_by_file = {}
+            for hit in search_result:
+                path = hit.payload["file_path"].replace(
+                    self.config.CONTAINER_PATH,
+                    self.config.LOCAL_FILES_PATH
+                )
+                file_url = f"file://{path}"
+                
+                # Only keep the highest scoring result from each file
+                if file_url not in results_by_file or hit.score > results_by_file[file_url][0]:
+                    results_by_file[file_url] = (hit.score, hit.payload)
 
             links = set()
             results = []
             
-            # Rerank results if reranker is configured
-            if self.reranker:
-                tokenizer, model = self.reranker
-                # Prepare pairs of (query, document) for reranking with proper separator
-                pairs = [(f"{query} [SEP] {doc.page_content}") for doc in found]
-                inputs = tokenizer(
-                    pairs,
-                    padding=True,
-                    truncation=True,
-                    return_tensors="pt",
-                    max_length=512,
-                    add_special_tokens=True
-                )
-                with torch.no_grad():
-                    scores = model(**inputs).logits
-                # Sort documents by reranker scores
-                sorted_docs = [doc for _, doc in sorted(zip(scores, found), reverse=True)]
-            else:
-                sorted_docs = found
-
-            seen_contents = set()
-            unique_results = []
-            
-            for item in sorted_docs:
-                path = item.metadata["file_path"].replace(
-                    self.config.CONTAINER_PATH,
-                    self.config.LOCAL_FILES_PATH
-                )
-                links.add(f"file://{path}")
+            # Process unique results
+            for file_url, (score, payload) in results_by_file.items():
+                links.add(file_url)
                 
-                # Skip duplicate content
-                if item.page_content in seen_contents:
-                    continue
-                seen_contents.add(item.page_content)
-                
-                # Calculate relevance score based on metadata
-                relevance_score = 1.0
-                metadata = item.metadata
+                # Calculate relevance score
+                relevance_score = score  # Base score is the similarity score
                 
                 # Increase score for recent documents
-                if "modified_at" in metadata:
+                if "modified_at" in payload:
                     try:
-                        modified_days = (datetime.now() - datetime.fromisoformat(metadata["modified_at"])).days
-                        relevance_score += max(0, (30 - modified_days) / 30)  # Recent documents get higher score
+                        modified_days = (datetime.now() - datetime.fromisoformat(payload["modified_at"])).days
+                        relevance_score += max(0, (30 - modified_days) / 30)
                     except:
                         pass
                 
                 # Increase score for documents with tags
-                if "tags" in metadata and len(metadata["tags"]) > 0:
+                if "tags" in payload and len(payload["tags"]) > 0:
                     relevance_score += 0.5
                 
-                # Extract and include metadata if available
+                # Create result object
                 result = {
-                    "content": item.page_content,
+                    "content": payload.get("page_content", ""),
                     "metadata": {
-                        "tags": metadata.get("tags", []),
-                        "links": metadata.get("links", []),
-                        "created_at": metadata.get("created_at"),
-                        "modified_at": metadata.get("modified_at"),
+                        "tags": payload.get("tags", []),
+                        "links": payload.get("links", []),
+                        "created_at": payload.get('created_at'),
+                        "modified_at": payload.get('modified_at'),
                         "relevance_score": relevance_score
                     }
                 }
-                unique_results.append(result)
-
+                results.append(result)
+            
             # Sort results by relevance score
-            unique_results.sort(key=lambda x: x["metadata"]["relevance_score"], reverse=True)
-
+            results.sort(key=lambda x: x["metadata"]["relevance_score"], reverse=True)
+            
             output = {
                 "links": links,
-                "output": ". ".join([r["content"] for r in unique_results]),
-                "metadata": [r["metadata"] for r in unique_results],
-                "relevance_scores": [r["metadata"]["relevance_score"] for r in unique_results]
+                "results": results
             }
             
-            logger.info(f"Found {len(found)} results")
+            logger.info(f"Found {len(search_result)} results")
             return output
             
         except Exception as e:
             logger.error(f"Search failed: {str(e)}")
             return {"error": "Unable to find anything for the given query"}
-
-    def embed(self, query: str):
-        return self.embed_model.embed_query(query)

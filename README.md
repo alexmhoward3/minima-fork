@@ -6,6 +6,14 @@ VaultRAG currently supports two modes:
 
 2. Claude MCP – Use Anthropic Claude app to query your local documents via Model Context Protocol (MCP). The indexer operates on your local PC, while Anthropic Claude serves as the primary LLM.
 
+## How a query passes from MCP to Qdrant to user
+graph LR
+    A[MCP Client] --> B(mcp-server/src/minima/server.py: call_tool);
+    B --> C(mcp-server/src/minima/requestor.py: request_data);
+    C --> D(indexer/app.py: /query endpoint);
+    D --> E(indexer/indexer.py: find);
+    E --> F[Qdrant Vector Database];
+
 **For MCP usage, please be sure that your local machines python is >=3.10 and 'uv' installed.**
 
 1. Create a .env file in the project’s root directory (where you’ll find env.sample). Place .env in the same folder and copy all environment variables from env.sample to .env.
