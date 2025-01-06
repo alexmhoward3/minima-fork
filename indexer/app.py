@@ -21,8 +21,22 @@ class Query(BaseModel):
     query: str
 
 @router.post(
-    "/query", 
-    response_description='Query local data storage',
+    "/cleanup",
+    response_description='Clean up duplicate entries',
+)
+async def cleanup():
+    logger.info("Received cleanup request")
+    try:
+        result = indexer.cleanup_duplicates()
+        logger.info(f"Cleanup results: {result}")
+        return {"result": result}
+    except Exception as e:
+        logger.error(f"Error in cleanup: {e}")
+        return {"error": str(e)}
+
+@router.post(
+    "/query",
+    response_description='Search for documents matching query',
 )
 async def query(request: Query):
     logger.info(f"Received query: {request.query}")
@@ -33,6 +47,8 @@ async def query(request: Query):
     except Exception as e:
         logger.error(f"Error in processing query: {e}")
         return {"error": str(e)}
+    
+
     
 @router.post(
     "/embedding", 

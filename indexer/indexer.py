@@ -14,7 +14,7 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from qdrant_client.http.models import Distance, VectorParams
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
-from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from cleanup import QdrantCleanup
 from datetime import datetime
 from langchain_community.document_loaders import (
     TextLoader,
@@ -64,11 +64,11 @@ class Indexer:
         self.document_store = self._setup_collection()
         self.text_splitter = self._initialize_text_splitter()
         self.ignore_patterns = self._load_ignore_patterns()
-        self.reranker = self._initialize_reranker()
         
-    def _initialize_reranker(self):
-        # Disable reranker to get all results
-        return None
+    def cleanup_duplicates(self) -> Dict[str, int]:
+        """Clean up duplicate embeddings from the collection."""
+        cleanup = QdrantCleanup(self.qdrant, self.config.QDRANT_COLLECTION)
+        return cleanup.cleanup_duplicates()
 
     def _load_ignore_patterns(self) -> List[str]:
         """Load patterns from .minimaignore file if it exists"""
@@ -182,7 +182,9 @@ class Indexer:
             # Process each document
             for doc in documents:
                 # Standardize file path
-                doc.metadata['file_path'] = doc.metadata['path']
+                logger.info(f"Document metadata before path standardization: {doc.metadata}")
+                doc.metadata['file_path'] = doc.metadata.get('path') or doc.metadata.get('source')
+                logger.info(f"Document metadata after path standardization: {doc.metadata}")
 
                 # For Obsidian files, standardize metadata
                 if isinstance(loader, ObsidianLoader):
@@ -217,6 +219,7 @@ class Indexer:
                                 logger.debug(f"Could not parse {date_field} value '{value}': {e}")
 
                     # Standardize metadata
+                    logger.info(f"Original metadata before update: {doc.metadata}")
                     doc.metadata.update({
                         "tags": list(tags),
                         "created_at": doc.metadata.get('created_at'),
@@ -258,84 +261,124 @@ class Indexer:
     def find(self, query: str) -> Dict[str, any]:
         try:
             logger.info(f"Searching for: {query}")
-            # Convert query to vector
             query_vector = self.embed_model.embed_query(query)
             
-            # Search using raw Qdrant client
+            # Get initial results
             search_result = self.qdrant.search(
                 collection_name=self.config.QDRANT_COLLECTION,
                 query_vector=query_vector,
-                limit=50,  # Get more results
-                with_payload=True,  # Get metadata
+                limit=20,
+                with_payload=True,
                 search_params={
-                    "exact": False,  # Use approximate search
-                    "hnsw_ef": 128  # Increase accuracy
+                    "exact": False,
+                    "hnsw_ef": 128
                 }
             )
             
             if not search_result:
                 logger.info("No results found")
-                return {"links": set(), "output": ""}
+                return {"links": set(), "results": []}
 
-            # Group results by file path to avoid duplicates from same file
-            results_by_file = {}
-            for hit in search_result:
-                path = hit.payload["file_path"].replace(
-                    self.config.CONTAINER_PATH,
-                    self.config.LOCAL_FILES_PATH
-                )
-                file_url = f"file://{path}"
-                
-                # Only keep the highest scoring result from each file
-                if file_url not in results_by_file or hit.score > results_by_file[file_url][0]:
-                    results_by_file[file_url] = (hit.score, hit.payload)
-
-            links = set()
-            results = []
+            # Use a dictionary to track unique results by file path
+            unique_results = {}
             
-            # Process unique results
-            for file_url, (score, payload) in results_by_file.items():
-                links.add(file_url)
-                
-                # Calculate relevance score
-                relevance_score = score  # Base score is the similarity score
-                
-                # Increase score for recent documents
-                if "modified_at" in payload:
-                    try:
-                        modified_days = (datetime.now() - datetime.fromisoformat(payload["modified_at"])).days
-                        relevance_score += max(0, (30 - modified_days) / 30)
-                    except:
-                        pass
-                
-                # Increase score for documents with tags
-                if "tags" in payload and len(payload["tags"]) > 0:
-                    relevance_score += 0.5
-                
-                # Create result object
-                result = {
-                    "content": payload.get("page_content", ""),
-                    "metadata": {
-                        "tags": payload.get("tags", []),
-                        "links": payload.get("links", []),
-                        "created_at": payload.get('created_at'),
-                        "modified_at": payload.get('modified_at'),
-                        "relevance_score": relevance_score
+            for hit in search_result:
+                try:
+                    # Get file path from either metadata or root
+                    metadata = hit.payload.get('metadata', {})
+                    path = (metadata.get('file_path') or 
+                        hit.payload.get('file_path') or 
+                        metadata.get('source') or 
+                        hit.payload.get('source'))
+                    
+                    if not path:
+                        logger.warning(f"No path found in payload: {hit.payload}")
+                        continue
+                    
+                    # Normalize path
+                    path = path.replace(self.config.CONTAINER_PATH, self.config.LOCAL_FILES_PATH)
+                    path = path.replace('\\', '/')
+                    
+                    # Only process if we haven't seen this file yet or if the score is better
+                    if path not in unique_results or hit.score > unique_results[path]["metadata"]["scores"]["similarity"]:
+                        file_url = f"file://{path}"
+                        
+                        # Calculate relevance score
+                        relevance_score = hit.score * 100
+                        
+                        # Apply boosts
+                        if "modified_at" in metadata:
+                            try:
+                                modified_days = (datetime.now() - datetime.fromisoformat(metadata["modified_at"])).days
+                                recency_boost = max(0, (30 - modified_days) / 30) * 20
+                                relevance_score += recency_boost
+                            except Exception as e:
+                                logger.debug(f"Error calculating date boost: {e}")
+                        
+                        tags = metadata.get("tags", [])
+                        if tags and len(tags) > 0:
+                            tag_boost = len(tags) * 5
+                            relevance_score += min(tag_boost, 20)
+                        
+                        result = {
+                            "content": hit.payload.get("page_content", ""),
+                            "metadata": {
+                                "file": {
+                                    "url": file_url,
+                                    "filename": os.path.basename(path)
+                                },
+                                "tags": tags,
+                                "links": metadata.get("links", []),
+                                "created_at": metadata.get('created_at'),
+                                "modified_at": metadata.get('modified_at'),
+                                "scores": {
+                                    "relevance": round(relevance_score, 2),
+                                    "similarity": round(hit.score * 100, 2)
+                                }
+                            }
+                        }
+                        unique_results[path] = result
+                        
+                except Exception as e:
+                    logger.error(f"Error processing search result: {e}")
+                    continue
+            
+            if not unique_results:
+                logger.warning("No valid results found after processing")
+                return {"links": [], "results": []}
+            
+            # Convert to list and sort by relevance
+            results = list(unique_results.values())
+            results.sort(key=lambda x: x["metadata"]["scores"]["relevance"], reverse=True)
+            
+            # Take top 10 results
+            results = results[:10]
+            
+            # Get unique links
+            links = [result["metadata"]["file"]["url"] for result in results]
+            
+            # Wrap the results in a 'content' array as per MCP format
+            content = [
+                {
+                    "type": "text",
+                    "text": f"Found {len(results)} results from {len(set(links))} unique files",
+                },
+                {
+                    "type": "application/json",
+                    "json": {
+                        "links": links,
+                        "results": results,
+                        "metadata": {
+                            "total_results": len(results),
+                            "unique_files": len(set(links))
+                        }
                     }
                 }
-                results.append(result)
+            ]
             
-            # Sort results by relevance score
-            results.sort(key=lambda x: x["metadata"]["relevance_score"], reverse=True)
-            
-            output = {
-                "links": links,
-                "results": results
-            }
-            
-            logger.info(f"Found {len(search_result)} results")
-            return output
-            
+            logger.info(content[0]["text"])
+            return {"content": content}
+                
         except Exception as e:
             logger.error(f"Search failed: {str(e)}")
             return {"error": "Unable to find anything for the given query"}

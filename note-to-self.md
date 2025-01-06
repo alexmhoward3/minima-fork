@@ -7,6 +7,9 @@ set QDRANT_HOST=localhost; set QDRANT_PORT=6333; set START_INDEXING=true; set CO
 ## To restart indexer (huge)
 docker compose -f docker-compose-mcp.yml restart indexer
 
+## Cleanup
+curl -X POST http://localhost:8001/cleanup
+
 ## Inspector
 npx -y @modelcontextprotocol/inspector uv --directory c:/Users/Alex/Documents/Projects/minima-fork/mcp-server run minima
 
@@ -19,6 +22,7 @@ This basically just parses frontmatter, tags and dataview (?). Capturing links i
   - decision: would add complexity to note parsing and not super useful in metadata. save this for another time, possibly with a knowledge graph.
 - [x] play around with chunk size
 - [x] hmm not pointing to vault, even though local files variable is set
+- [ ] fix duplicate entries (cleanup.py)
 - [ ] how does the reranker work in the minima indexer > qdrant vector store > mcp query workflow?
 - [ ] consider adding a progress bar to indexing
 - [ ] the tool just returns one search result. how can we improve that?

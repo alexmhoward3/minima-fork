@@ -31,103 +31,79 @@ logging.basicConfig(
 
 server = Server("minima")
 
-class Query(BaseModel):
-    text: Annotated[
-        str, 
-        Field(description="context to find")
-    ]
+from .tools.manager import ToolManager
+
+logger = logging.getLogger(__name__)
+server = Server("minima")
+tool_manager = ToolManager()
 
 @server.list_tools()
 async def list_tools() -> list[Tool]:
-    return [
-        Tool(
-            name="query",
-            description="Find a context in local files (PDF, CSV, DOCX, MD, TXT)",
-            inputSchema=Query.model_json_schema(),
-        )
-    ]
-    
+    return tool_manager.list_tools()
+
 @server.list_prompts()
 async def list_prompts() -> list[Prompt]:
-    logging.info("List of prompts")
+    # We only need one prompt for the query tool
     return [
         Prompt(
             name="query",
-            description="Find a context in a local files",
-            arguments=[
-                PromptArgument(
-                    name="context", description="Context to search", required=True
-                )
-            ]
-        )            
+            description="Search through local files",
+            arguments=[{
+                "name": "text",
+                "description": "Text to search for",
+                "required": True
+            }]
+        )
     ]
-    
+
 @server.call_tool()
-async def call_tool(name, arguments: dict) -> list[TextContent]:
-    if name != "query":
-        logging.error(f"Unknown tool: {name}")
-        raise ValueError(f"Unknown tool: {name}")
-
-    logging.info("Calling tools")
+async def call_tool(name: str, arguments: dict) -> list[Tool]:
     try:
-        args = Query(**arguments)
+        return await tool_manager.execute_tool(name, arguments)
     except ValueError as e:
-        logging.error(str(e))
         raise McpError(INVALID_PARAMS, str(e))
-        
-    context = args.text
-    logging.info(f"Context: {context}")
-    if not context:
-        logging.error("Context is required")
-        raise McpError(INVALID_PARAMS, "Context is required")
+    except Exception as e:
+        logger.error(f"Tool execution failed: {e}")
+        raise
 
-    output = await request_data(context)
-    if "error" in output:
-        logging.error(output["error"])
-        raise McpError(INTERNAL_ERROR, output["error"])
-    
-    logging.info(f"Get prompt: {output}")    
-    output = output['result']['output']
-    #links = output['result']['links']
-    result = []
-    result.append(TextContent(type="text", text=output))
-    return result
-    
 @server.get_prompt()
 async def get_prompt(name: str, arguments: dict | None) -> GetPromptResult:
-    if not arguments or "context" not in arguments:
-        logging.error("Context is required")
-        raise McpError(INVALID_PARAMS, "Context is required")
+    if name != "query":
+        raise McpError(INVALID_PARAMS, f"Unknown prompt: {name}")
         
-    context = arguments["text"]
-
-    output = await request_data(context)
-    if "error" in output:
-        error = output["error"]
-        logging.error(error)
+    if not arguments or "text" not in arguments:
+        raise McpError(INVALID_PARAMS, "Query text is required")
+    
+    try:
+        results = await tool_manager.execute_tool("query", arguments)
+        
+        if not results:
+            return GetPromptResult(
+                description=f"No results found for '{arguments['text']}'",
+                messages=[
+                    PromptMessage(
+                        role="user",
+                        content=results[0] if results else None
+                    )
+                ]
+            )
+            
         return GetPromptResult(
-            description=f"Faild to find a {context}",
+            description=f"Found results for '{arguments['text']}'",
             messages=[
                 PromptMessage(
-                    role="user", 
-                    content=TextContent(type="text", text=error),
+                    role="user",
+                    content=results[0]
                 )
             ]
         )
-
-    logging.info(f"Get prompt: {output}")    
-    output = output['result']['output']
-    return GetPromptResult(
-        description=f"Found content for this {context}",
-        messages=[
-            PromptMessage(
-                role="user", 
-                content=TextContent(type="text", text=output)
-            )
-        ]
-    )
+        
+    except Exception as e:
+        logger.error(f"Error getting prompt: {e}")
+        raise
 
 async def main():
+    """Main entry point for the MCP server"""
     async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
         await server.run(
             read_stream,

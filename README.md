@@ -6,13 +6,44 @@ VaultRAG currently supports two modes:
 
 2. Claude MCP – Use Anthropic Claude app to query your local documents via Model Context Protocol (MCP). The indexer operates on your local PC, while Anthropic Claude serves as the primary LLM.
 
-## How a query passes from MCP to Qdrant to user
-graph LR
-    A[MCP Client] --> B(mcp-server/src/minima/server.py: call_tool);
-    B --> C(mcp-server/src/minima/requestor.py: request_data);
-    C --> D(indexer/app.py: /query endpoint);
-    D --> E(indexer/indexer.py: find);
-    E --> F[Qdrant Vector Database];
+## System Overview
+
+The following diagram shows how a query flows through the system:
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Claude as Claude Desktop
+    participant MCP as MCP Server
+    participant Search as Search Tool
+    participant Indexer
+    participant DB as Qdrant Vector DB
+    
+    User->>Claude: Types query
+    Claude->>MCP: Decides to use search tool
+    MCP->>Search: call_tool(query)
+    Note over Search: Validates query parameters
+    
+    Search->>Indexer: POST /query
+    activate Indexer
+    
+    Indexer->>DB: Generate embedding
+    DB-->>Indexer: Vector representation
+    
+    Indexer->>DB: Search similar vectors
+    DB-->>Indexer: Raw results
+    
+    Note over Indexer: Apply relevance scoring:<br/>- Recency boost<br/>- Tag boost<br/>- Content relevance
+    
+    Indexer-->>Search: Ranked results w/metadata
+    deactivate Indexer
+    
+    Note over Search: Format results:<br/>- Extract content<br/>- Structure metadata<br/>- Build summary
+    
+    Search-->>MCP: Formatted results
+    MCP-->>Claude: Search results
+    Claude-->>User: Natural language response<br/>incorporating search results
+```
 
 **For MCP usage, please be sure that your local machines python is >=3.10 and 'uv' installed.**
 
