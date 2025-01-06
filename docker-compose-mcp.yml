@@ -12,9 +12,14 @@ services:
       - 6334
       - 6335
     volumes:
-      - ./qdrant_data:/qdrant/storage
+      - F:/qdrant_data:/qdrant/storage
     environment:
       QDRANT__LOG_LEVEL: "INFO"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333"]
+      interval: 30s
+      timeout: 1s
+      retries: 30
 
   indexer:
     build: 
@@ -48,5 +53,7 @@ services:
       - EMBEDDING_SIZE=${EMBEDDING_SIZE}
       - START_INDEXING=${START_INDEXING}
       - CONTAINER_PATH=/usr/src/app/local_files/
+      - QDRANT_HOST=qdrant
     depends_on:
-      - qdrant
+      qdrant:
+        condition: service_healthy
