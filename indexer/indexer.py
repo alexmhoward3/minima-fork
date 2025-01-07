@@ -3,6 +3,7 @@ import uuid
 import torch
 import logging
 import fnmatch
+import hashlib
 from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Set, Dict, Optional
@@ -157,6 +158,26 @@ class Indexer:
         
         return loader_class(file_path=file_path)
 
+    def _generate_chunk_id(self, file_path: str, chunk_content: str) -> str:
+        """Generate a deterministic ID for a document chunk based on file path and content.
+        
+        Args:
+            file_path: Path to the source file
+            chunk_content: Content of the specific chunk
+            
+        Returns:
+            str: A deterministic UUID-like string
+        """
+        # Combine file path and content to create a unique string
+        unique_string = f"{file_path}::{chunk_content}"
+        
+        # Create SHA-256 hash of the unique string
+        hash_object = hashlib.sha256(unique_string.encode())
+        hash_hex = hash_object.hexdigest()
+        
+        # Format as UUID (8-4-4-4-12)
+        return f"{hash_hex[:8]}-{hash_hex[8:12]}-{hash_hex[12:16]}-{hash_hex[16:20]}-{hash_hex[20:32]}"
+
     def _process_file(self, loader) -> List[str]:
         """Process a file and add it to the document store"""
         try:
@@ -166,6 +187,8 @@ class Indexer:
             if not documents:
                 logger.warning(f"No documents loaded from {loader.file_path}")
                 return []
+
+            # Split documents based on chunking strategy
             if os.environ.get("CHUNK_STRATEGY") == "h2":
                 new_documents = []
                 for doc in documents:
@@ -175,18 +198,21 @@ class Indexer:
                         new_documents.append(new_doc)
                 documents = new_documents
             else:
-                # Split documents if any were loaded
                 if documents:
                     documents = self.text_splitter.split_documents(documents)
 
             # Process each document
+            ids = []
             for doc in documents:
                 # Standardize file path
-                logger.info(f"Document metadata before path standardization: {doc.metadata}")
                 doc.metadata['file_path'] = doc.metadata.get('path') or doc.metadata.get('source')
                 logger.info(f"Document metadata after path standardization: {doc.metadata}")
 
-                # For Obsidian files, standardize metadata
+                # Generate deterministic ID for this chunk
+                chunk_id = self._generate_chunk_id(doc.metadata['file_path'], doc.page_content)
+                ids.append(chunk_id)
+
+                # Handle Obsidian-specific metadata
                 if isinstance(loader, ObsidianLoader):
                     # Handle tags
                     tags = set()
@@ -230,13 +256,12 @@ class Indexer:
                     for field in ['path', 'frontmatter', 'source']:
                         doc.metadata.pop(field, None)
 
-            # Generate IDs and add to store
-            uuids = [str(uuid.uuid4()) for _ in range(len(documents))]
-            ids = self.document_store.add_documents(documents=documents, ids=uuids)
+            # Add documents with deterministic IDs
+            self.document_store.add_documents(documents=documents, ids=ids)
             
             logger.info(f"Successfully processed {len(ids)} documents from {loader.file_path}")
             return ids
-            
+                
         except Exception as e:
             logger.error(f"Error processing file {loader.file_path}: {str(e)}")
             return []

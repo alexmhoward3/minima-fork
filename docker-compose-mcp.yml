@@ -52,6 +52,10 @@ services:
       - EMBEDDING_MODEL_ID=${EMBEDDING_MODEL_ID}
       - EMBEDDING_SIZE=${EMBEDDING_SIZE}
       - START_INDEXING=${START_INDEXING}
+      - RERANKER_MODEL=${RERANKER_MODEL}
+      - CHUNK_SIZE=${CHUNK_SIZE}
+      - CHUNK_OVERLAP=${CHUNK_OVERLAP}
+      - CHUNK_STRATEGY=${CHUNK_STRATEGY}
       - CONTAINER_PATH=/usr/src/app/local_files/
       - QDRANT_HOST=qdrant
     depends_on:

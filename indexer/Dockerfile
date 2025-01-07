@@ -4,7 +4,6 @@ WORKDIR /usr/src/app
 RUN apt-get update && apt-get install -y git
 
 ARG EMBEDDING_MODEL_ID
-ARG START_INDEXING
 ARG RERANKER_MODEL
 ARG CHUNK_SIZE
 ARG CHUNK_OVERLAP
@@ -17,9 +16,6 @@ RUN huggingface-cli download $RERANKER_MODEL --repo-type model
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
-
-ENV START_INDEXING=${START_INDEXING}
-RUN echo "START_INDEXING is $START_INDEXING"
 
 ENV CHUNK_SIZE=${CHUNK_SIZE}
 ENV CHUNK_OVERLAP=${CHUNK_OVERLAP}
