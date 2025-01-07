@@ -18,6 +18,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
+# Add current directory to Python path
+ENV PYTHONPATH=/usr/src/app:$PYTHONPATH
+
 ENV START_INDEXING=${START_INDEXING}
 RUN echo "START_INDEXING is $START_INDEXING"
 

@@ -4,6 +4,8 @@ from pydantic import BaseModel, Field
 from mcp.types import Tool, TextContent
 from ..requestor import request_data
 
+from .cleanup import CleanupTool  # Import from local module instead
+
 logger = logging.getLogger(__name__)
 
 class Query(BaseModel):
@@ -100,7 +102,8 @@ class SearchTool:
 class ToolManager:
     def __init__(self):
         self.tools = {
-            "query": SearchTool()
+            "query": SearchTool(),
+            "cleanup-database": CleanupTool()
         }
     
     def get_tool(self, name: str) -> Any:

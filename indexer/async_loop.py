@@ -43,4 +43,3 @@ async def index_loop(async_queue, indexer: Indexer):
         except Exception as e:
             logger.error(f"Error in processing message: {e}")
             logger.error(f"Failed to process message: {message}")
-

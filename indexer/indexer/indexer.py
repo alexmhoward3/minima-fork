@@ -13,9 +13,6 @@ from langchain_qdrant import QdrantVectorStore
 from langchain_huggingface import HuggingFaceEmbeddings
 from qdrant_client.http.models import Distance, VectorParams
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-
-from cleanup import QdrantCleanup
-from datetime import datetime
 from langchain_community.document_loaders import (
     TextLoader,
     CSVLoader,
@@ -24,6 +21,8 @@ from langchain_community.document_loaders import (
     PyMuPDFLoader,
     ObsidianLoader,
 )
+
+from cleanup import QdrantCleanup  # Changed from relative to absolute import
 
 logger = logging.getLogger(__name__)
 
