@@ -22,7 +22,7 @@ This basically just parses frontmatter, tags and dataview (?). Capturing links i
   - decision: would add complexity to note parsing and not super useful in metadata. save this for another time, possibly with a knowledge graph.
 - [x] play around with chunk size
 - [x] hmm not pointing to vault, even though local files variable is set
-- [ ] fix duplicate entries (cleanup.py)
+- [ ] fix duplicate entries (cleanup.py) - update investigate some qdrant functionality first.
 - [ ] how does the reranker work in the minima indexer > qdrant vector store > mcp query workflow?
 - [ ] consider adding a progress bar to indexing
 - [ ] the tool just returns one search result. how can we improve that?
