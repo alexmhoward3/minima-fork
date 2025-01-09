@@ -3,6 +3,7 @@ import uuid
 import torch
 import logging
 import fnmatch
+import hashlib
 from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Set, Dict, Optional
@@ -221,11 +222,18 @@ class Indexer:
                     for field in ['path', 'frontmatter', 'source']:
                         doc.metadata.pop(field, None)
 
-            # Generate IDs and add to store
-            uuids = [str(uuid.uuid4()) for _ in range(len(documents))]
+            # Generate content-based UUIDs and add to store
+            uuids = [self._generate_content_uuid(doc) for doc in documents]
+            logger.info(f"Generated UUIDs: {uuids}")
+            
             ids = self.document_store.add_documents(documents=documents, ids=uuids)
             
-            logger.info(f"Successfully processed {len(ids)} documents from {loader.file_path}")
+            logger.info(f"Successfully processed {len(ids)} documents from {loader.file_path} with UUIDs: {ids}")
+            
+            # Log first few characters of content with their UUIDs for verification
+            for doc, uid in zip(documents, uuids):
+                preview = doc.page_content[:50] + '...' if len(doc.page_content) > 50 else doc.page_content
+                logger.info(f"Content preview: {preview} -> UUID: {uid}")
             return ids
             
         except Exception as e:
@@ -344,3 +352,38 @@ class Indexer:
 
     def embed(self, query: str):
         return self.embed_model.embed_query(query)
+        
+    def verify_document_uuid(self, document) -> Dict[str, any]:
+        """Check if a document with the same content-based UUID exists"""
+        generated_uuid = self._generate_content_uuid(document)
+        
+        # Search in Qdrant for this UUID
+        points = self.qdrant.retrieve(
+            collection_name=self.config.QDRANT_COLLECTION,
+            ids=[generated_uuid]
+        )
+        
+        exists = len(points) > 0
+        return {
+            "uuid": generated_uuid,
+            "exists": exists,
+            "content_preview": document.page_content[:50] + '...' if exists else None
+        }
+        
+    def _generate_content_uuid(self, document) -> str:
+        """Generate a deterministic UUID based on document content and metadata"""
+        # Combine relevant fields for hashing
+        content = document.page_content
+        file_path = document.metadata.get('file_path', '')
+        modified_at = document.metadata.get('modified_at', '')
+        
+        # Add other relevant metadata if available
+        tags = ','.join(sorted(document.metadata.get('tags', []))) if 'tags' in document.metadata else ''
+        
+        # Create a deterministic hash string
+        hash_input = f"{content}{file_path}{modified_at}{tags}".encode('utf-8')
+        content_hash = hashlib.sha256(hash_input).hexdigest()
+        
+        # Convert hash to UUID format using namespace
+        # Using NAMESPACE_OID as it's appropriate for document identifiers
+        return str(uuid.uuid5(uuid.NAMESPACE_OID, content_hash))

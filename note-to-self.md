@@ -31,7 +31,7 @@ this is the working branch. TODO
 - [x] play around with chunk size
 - [x] hmm not pointing to vault, even though local files variable is set
 - [x] fix duplicate entries (cleanup.py) (better to just nuke the vector database)
-- [ ] establish method of preventing duplicates (UUIDs)
+- [x] establish method of preventing duplicates (UUIDs)
 - [ ] how does the reranker work in the minima indexer > qdrant vector store > mcp query workflow? Answer: i think it was showign deduplicated results and returning only one of dozens of duplicates
 - [ ] consider adding a progress bar to indexing
 - [x] the tool just returns one search result. how can we improve that?

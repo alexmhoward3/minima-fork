@@ -19,6 +19,10 @@ router = APIRouter()
 
 class Query(BaseModel):
     query: str
+    
+class Document(BaseModel):
+    content: str
+    metadata: dict = {}
 
 @router.post(
     "/query", 
@@ -48,6 +52,27 @@ async def embedding(request: Query):
     except Exception as e:
         logger.error(f"Error in processing embedding: {e}")
         return {"error": str(e)}    
+
+@router.post(
+    "/verify-uuid",
+    response_description='Check if a document exists by content-based UUID'
+)
+async def verify_uuid(doc: Document):
+    from langchain.docstore.document import Document as LangchainDocument
+    
+    # Convert to Langchain document
+    document = LangchainDocument(
+        page_content=doc.content,
+        metadata=doc.metadata
+    )
+    
+    try:
+        result = indexer.verify_document_uuid(document)
+        logger.info(f"UUID verification result: {result}")
+        return {"result": result}
+    except Exception as e:
+        logger.error(f"Error in UUID verification: {e}")
+        return {"error": str(e)}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
