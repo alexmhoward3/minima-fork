@@ -3,7 +3,6 @@ import mcp.server.stdio
 from typing import Annotated, List
 from datetime import datetime
 from mcp.server import Server
-from .requestor import request_data
 from pydantic import BaseModel, Field
 from mcp.server.stdio import stdio_server
 from mcp.shared.exceptions import McpError
@@ -20,6 +19,9 @@ from mcp.types import (
     INTERNAL_ERROR,
 )
 
+from .search_service import SearchService
+from .models import Query, SearchResult, SearchMatch, SearchMetadata, SearchContext
+from .exceptions import SearchError, InvalidQueryError, ProcessingError, ValidationError
 
 logging.basicConfig(
     level=logging.DEBUG, 
@@ -32,20 +34,26 @@ logging.basicConfig(
 
 server = Server("minima")
 
-from .models import Query, SearchResult, SearchMatch, SearchMetadata, SearchContext
-from .exceptions import SearchError, InvalidQueryError, ProcessingError, ValidationError
+from .config import config
 
-def validate_search_result(result: dict) -> None:
+# Initialize search service
+search_service = SearchService(
+    collection_name=config.qdrant.collection_name,
+    qdrant_host=config.qdrant.host,
+    qdrant_port=config.qdrant.port
+)
+
+def validate_search_result(result: SearchResult) -> None:
     """Validate search result structure and content"""
-    if not result.get('matches'):
+    if not result.matches:
         raise ValidationError("No matches found in result")
     
-    for match in result['matches']:
-        if not match.get('content'):
+    for match in result.matches:
+        if not match.content:
             raise ValidationError("Empty content in match")
-        if not match.get('metadata'):
+        if not match.metadata:
             raise ValidationError("Missing metadata in match")
-        if not match.get('context'):
+        if not match.context:
             raise ValidationError("Missing context in match")
 
 @server.list_tools()
@@ -92,35 +100,22 @@ async def call_tool(name, arguments: dict) -> list[TextContent]:
         logging.error("Context is required")
         raise McpError(INVALID_PARAMS, "Context is required")
 
-    output = await request_data(context)
-    validate_search_result(output['result'])
-    if "error" in output:
-        logging.error(output["error"])
-        raise McpError(INTERNAL_ERROR, output["error"])
-    
-    logging.info(f"Get prompt: {output}")    
-    # Convert raw output to SearchResult model
-    raw_output = output['result']
-    search_result = SearchResult(
-        matches=[SearchMatch(
-            content=match['content'],
-            metadata=SearchMetadata(**match.get('metadata', {})),
-            context=SearchContext(
-                before=match.get('context', {}).get('before', ''),
-                after=match.get('context', {}).get('after', '')
-            )
-        ) for match in raw_output.get('matches', [])],
-        total_matches=len(raw_output.get('matches', [])),
-        query=context,
-        execution_time=raw_output.get('execution_time', 0.0)
-    )
-    
-    # Convert to output string
-    output = '. '.join(match.content for match in search_result.matches) if search_result.matches else ''
-    #links = output['result']['links']
-    result = []
-    result.append(TextContent(type="text", text=output))
-    return result
+    try:
+        search_result = await search_service.search(context)
+        validate_search_result(search_result)
+        
+        # Convert to output string
+        output = '. '.join(match.content for match in search_result.matches)
+        result = []
+        result.append(TextContent(type="text", text=output))
+        return result
+        
+    except SearchError as e:
+        logging.error(f"Search error: {str(e)}")
+        raise McpError(INTERNAL_ERROR, str(e))
+    except ValidationError as e:
+        logging.error(f"Validation error: {str(e)}")
+        raise McpError(INTERNAL_ERROR, str(e))
     
 @server.get_prompt()
 async def get_prompt(name: str, arguments: dict | None) -> GetPromptResult:
@@ -129,55 +124,45 @@ async def get_prompt(name: str, arguments: dict | None) -> GetPromptResult:
         raise McpError(INVALID_PARAMS, "Context is required")
         
     context = arguments["text"]
-
-    output = await request_data(context)
-    if "error" in output:
-        logger.error(f"Search error: {output['error']}")
     
     try:
-        validate_search_result(output['result'])
-    except ValidationError as e:
-        logger.error(f"Validation error: {str(e)}")
-        error = output["error"]
-        logging.error(error)
+        search_result = await search_service.search(context)
+        validate_search_result(search_result)
+        
+        # Convert to output string
+        output = '. '.join(match.content for match in search_result.matches)
         return GetPromptResult(
-            description=f"Faild to find a {context}",
+            description=f"Found content for this {context}",
             messages=[
                 PromptMessage(
                     role="user", 
-                    content=TextContent(type="text", text=error),
+                    content=TextContent(type="text", text=output)
                 )
             ]
         )
-
-    logging.info(f"Get prompt: {output}")    
-    # Convert raw output to SearchResult model
-    raw_output = output['result']
-    search_result = SearchResult(
-        matches=[SearchMatch(
-            content=match['content'],
-            metadata=SearchMetadata(**match.get('metadata', {})),
-            context=SearchContext(
-                before=match.get('context', {}).get('before', ''),
-                after=match.get('context', {}).get('after', '')
-            )
-        ) for match in raw_output.get('matches', [])],
-        total_matches=len(raw_output.get('matches', [])),
-        query=context,
-        execution_time=raw_output.get('execution_time', 0.0)
-    )
-    
-    # Convert to output string
-    output = '. '.join(match.content for match in search_result.matches) if search_result.matches else ''
-    return GetPromptResult(
-        description=f"Found content for this {context}",
-        messages=[
-            PromptMessage(
-                role="user", 
-                content=TextContent(type="text", text=output)
-            )
-        ]
-    )
+        
+    except SearchError as e:
+        logging.error(f"Search error: {str(e)}")
+        return GetPromptResult(
+            description=f"Failed to find content for {context}",
+            messages=[
+                PromptMessage(
+                    role="user", 
+                    content=TextContent(type="text", text=str(e)),
+                )
+            ]
+        )
+    except ValidationError as e:
+        logging.error(f"Validation error: {str(e)}")
+        return GetPromptResult(
+            description=f"Failed to validate search results for {context}",
+            messages=[
+                PromptMessage(
+                    role="user", 
+                    content=TextContent(type="text", text=str(e)),
+                )
+            ]
+        )
 
 async def main():
     async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):

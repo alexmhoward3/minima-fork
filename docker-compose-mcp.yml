@@ -16,17 +16,10 @@ services:
     environment:
       QDRANT__LOG_LEVEL: "INFO"
 
-  indexer:
+  mcp_server:
     build: 
-      context: ./indexer
+      context: ./mcp-server
       dockerfile: Dockerfile
-      args:
-        EMBEDDING_MODEL_ID: ${EMBEDDING_MODEL_ID}
-        EMBEDDING_SIZE: ${EMBEDDING_SIZE}
-        START_INDEXING: ${START_INDEXING}
-        RERANKER_MODEL: ${RERANKER_MODEL}
-        CHUNK_SIZE: ${CHUNK_SIZE}
-        CHUNK_OVERLAP: ${CHUNK_OVERLAP}
     deploy:
       resources:
         reservations:
@@ -36,18 +29,25 @@ services:
               capabilities: [gpu]
     volumes:
       - ${LOCAL_FILES_PATH}:/usr/src/app/local_files/
-      - ./indexer:/usr/src/app
       - huggingface_cache:/root/.cache/huggingface      
-    ports:
-      - 8001:8000
     environment:
-      - PYTHONPATH=/usr/src
-      - PYTHONUNBUFFERED=TRUE
-      - LOCAL_FILES_PATH=${LOCAL_FILES_PATH}
+      - PYTHONPATH=/usr/src/app
+      - PYTHONUNBUFFERED=1
+      # Model settings
       - EMBEDDING_MODEL_ID=${EMBEDDING_MODEL_ID}
       - EMBEDDING_SIZE=${EMBEDDING_SIZE}
-      - START_INDEXING=${START_INDEXING}
+      - RERANKER_MODEL=${RERANKER_MODEL}
+      - DEVICE=cuda
+      # Processing settings
+      - CHUNK_SIZE=${CHUNK_SIZE}
+      - CHUNK_OVERLAP=${CHUNK_OVERLAP}
+      - CHUNK_STRATEGY=h2
+      # Path settings
+      - LOCAL_FILES_PATH=${LOCAL_FILES_PATH}
       - CONTAINER_PATH=/usr/src/app/local_files/
+      # Logging
+      - LOG_LEVEL=INFO
+      - LOG_FILE=/var/log/minima.log
     depends_on:
       - qdrant
 volumes:
