@@ -1,6 +1,7 @@
 import logging
 import mcp.server.stdio
-from typing import Annotated
+from typing import Annotated, List
+from datetime import datetime
 from mcp.server import Server
 from .requestor import request_data
 from pydantic import BaseModel, Field
@@ -31,11 +32,21 @@ logging.basicConfig(
 
 server = Server("minima")
 
-class Query(BaseModel):
-    text: Annotated[
-        str, 
-        Field(description="context to find")
-    ]
+from .models import Query, SearchResult, SearchMatch, SearchMetadata, SearchContext
+from .exceptions import SearchError, InvalidQueryError, ProcessingError, ValidationError
+
+def validate_search_result(result: dict) -> None:
+    """Validate search result structure and content"""
+    if not result.get('matches'):
+        raise ValidationError("No matches found in result")
+    
+    for match in result['matches']:
+        if not match.get('content'):
+            raise ValidationError("Empty content in match")
+        if not match.get('metadata'):
+            raise ValidationError("Missing metadata in match")
+        if not match.get('context'):
+            raise ValidationError("Missing context in match")
 
 @server.list_tools()
 async def list_tools() -> list[Tool]:
@@ -82,12 +93,30 @@ async def call_tool(name, arguments: dict) -> list[TextContent]:
         raise McpError(INVALID_PARAMS, "Context is required")
 
     output = await request_data(context)
+    validate_search_result(output['result'])
     if "error" in output:
         logging.error(output["error"])
         raise McpError(INTERNAL_ERROR, output["error"])
     
     logging.info(f"Get prompt: {output}")    
-    output = output['result']['output']
+    # Convert raw output to SearchResult model
+    raw_output = output['result']
+    search_result = SearchResult(
+        matches=[SearchMatch(
+            content=match['content'],
+            metadata=SearchMetadata(**match.get('metadata', {})),
+            context=SearchContext(
+                before=match.get('context', {}).get('before', ''),
+                after=match.get('context', {}).get('after', '')
+            )
+        ) for match in raw_output.get('matches', [])],
+        total_matches=len(raw_output.get('matches', [])),
+        query=context,
+        execution_time=raw_output.get('execution_time', 0.0)
+    )
+    
+    # Convert to output string
+    output = '. '.join(match.content for match in search_result.matches) if search_result.matches else ''
     #links = output['result']['links']
     result = []
     result.append(TextContent(type="text", text=output))
@@ -103,6 +132,12 @@ async def get_prompt(name: str, arguments: dict | None) -> GetPromptResult:
 
     output = await request_data(context)
     if "error" in output:
+        logger.error(f"Search error: {output['error']}")
+    
+    try:
+        validate_search_result(output['result'])
+    except ValidationError as e:
+        logger.error(f"Validation error: {str(e)}")
         error = output["error"]
         logging.error(error)
         return GetPromptResult(
@@ -116,7 +151,24 @@ async def get_prompt(name: str, arguments: dict | None) -> GetPromptResult:
         )
 
     logging.info(f"Get prompt: {output}")    
-    output = output['result']['output']
+    # Convert raw output to SearchResult model
+    raw_output = output['result']
+    search_result = SearchResult(
+        matches=[SearchMatch(
+            content=match['content'],
+            metadata=SearchMetadata(**match.get('metadata', {})),
+            context=SearchContext(
+                before=match.get('context', {}).get('before', ''),
+                after=match.get('context', {}).get('after', '')
+            )
+        ) for match in raw_output.get('matches', [])],
+        total_matches=len(raw_output.get('matches', [])),
+        query=context,
+        execution_time=raw_output.get('execution_time', 0.0)
+    )
+    
+    # Convert to output string
+    output = '. '.join(match.content for match in search_result.matches) if search_result.matches else ''
     return GetPromptResult(
         description=f"Found content for this {context}",
         messages=[

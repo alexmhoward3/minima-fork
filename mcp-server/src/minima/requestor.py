@@ -11,7 +11,15 @@ REQUEST_HEADERS = {
     'Content-Type': 'application/json'
 }
 
-async def request_data(query):
+async def request_data(query: str) -> dict:
+    """Request data from the query engine.
+    
+    Args:
+        query: The search query string
+        
+    Returns:
+        Dict containing results with proper structure for search matches
+    """
     payload = {
         "query": query
     }

@@ -2,6 +2,8 @@ import os
 import uuid
 import torch
 import logging
+import structlog
+from datetime import datetime
 import fnmatch
 import hashlib
 from dataclasses import dataclass
@@ -27,7 +29,7 @@ from langchain_community.document_loaders import (
 )
 
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 @dataclass
@@ -257,14 +259,33 @@ class Indexer:
         except Exception as e:
             logger.error(f"Failed to index file {path}: {str(e)}")
 
+    def extract_context(self, text: str, match_start: int, match_end: int, window_size: int = 200) -> dict:
+        """Extract context window around a match"""
+        before = text[max(0, match_start - window_size):match_start]
+        after = text[match_end:min(len(text), match_end + window_size)]
+        return {
+            "before": before,
+            "after": after
+        }
+
     def find(self, query: str) -> Dict[str, any]:
+        start_time = datetime.now()
         try:
-            logger.info(f"Searching for: {query}")
+            logger.info("search_started", query=query)
             found = self.document_store.search(query, search_type="similarity")
             
             if not found:
-                logger.info("No results found")
-                return {"links": set(), "output": ""}
+                logger.info("search_completed", 
+                    query=query, 
+                    num_results=0, 
+                    execution_time=(datetime.now() - start_time).total_seconds())
+                return {
+                "matches": [],
+                "total_matches": 0,
+                "query": query,
+                "execution_time": (datetime.now() - start_time).total_seconds(),
+                "links": set()
+            }
 
             links = set()
             results = []
@@ -323,6 +344,11 @@ class Indexer:
                 # Extract and include metadata if available
                 result = {
                     "content": item.page_content,
+                    "context": self.extract_context(
+                        item.page_content,
+                        0,
+                        len(item.page_content)
+                    ),
                     "metadata": {
                         "tags": metadata.get("tags", []),
                         "links": metadata.get("links", []),
@@ -336,14 +362,22 @@ class Indexer:
             # Sort results by relevance score
             unique_results.sort(key=lambda x: x["metadata"]["relevance_score"], reverse=True)
 
+            # Calculate execution time
+            execution_time = (datetime.now() - start_time).total_seconds()
+            
+            # Create structured output
             output = {
-                "links": links,
-                "output": ". ".join([r["content"] for r in unique_results]),
-                "metadata": [r["metadata"] for r in unique_results],
-                "relevance_scores": [r["metadata"]["relevance_score"] for r in unique_results]
+                "matches": unique_results,
+                "total_matches": len(unique_results),
+                "query": query,
+                "execution_time": execution_time,
+                "links": links
             }
             
-            logger.info(f"Found {len(found)} results")
+            logger.info("search_completed",
+                query=query,
+                num_results=len(found),
+                execution_time=(datetime.now() - start_time).total_seconds())
             return output
             
         except Exception as e:
