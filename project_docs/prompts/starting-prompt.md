@@ -47,5 +47,9 @@ C:\Users\Alex\Documents\Projects\minima-fork\docker-compose-mcp.yml
 </files>
 
 <task>
-I've implemented a Deep Search tool in the MCP server.py, and I want to discuss whether it should be one tool with multiple variables (summary, trend, topics etc), or separate tools entirely.
+I've implemented a Deep Search tool in the MCP server.py, but I want to refactor the tools there into separate tools. I've written up an implementation plan C:\Users\Alex\Documents\Projects\minima-fork\project_docs\clarifying-tools.md. I want you to review that and give feedback. 
+
+The aim is to refactor the tools and make the tools clear for LLM use. They should keep operations focused and atomic. 
+
+First review the implementation plan, then review the necessary files. When you've done that, we can begin with the first step.
 </task>
