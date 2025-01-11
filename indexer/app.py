@@ -511,6 +511,19 @@ async def embedding(request: Query):
         return {"error": str(e)}    
 
 @router.post(
+    "/cleanup-ignored",
+    response_description='Remove documents from ignored directories'
+)
+async def cleanup_ignored():
+    try:
+        result = indexer.cleanup_ignored_files()
+        logger.info(f"Cleanup result: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"Error in cleanup: {e}")
+        return {"error": str(e)}
+
+@router.post(
     "/verify-uuid",
     response_description='Check if a document exists by content-based UUID'
 )

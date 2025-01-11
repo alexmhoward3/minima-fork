@@ -17,6 +17,10 @@ curl -X POST -H "Content-Type: application/json" -d "{"query": "leadership"}" ht
 ## Inspector
 npx -y @modelcontextprotocol/inspector uv --directory c:/Users/Alex/Documents/Projects/minima-fork/mcp-server run minima
 
+## cleanup-ignore
+uses the .minimaignore file to target cleanup files
+curl -X POST http://localhost:8001/cleanup-ignored
+
 ## DONE ObsidianLoader
 This basically just parses frontmatter, tags and dataview (?). Capturing links in notes might have to be a parsing regex. Update: decided not to do this
 
@@ -27,7 +31,8 @@ This basically just parses frontmatter, tags and dataview (?). Capturing links i
   - FIXED: Summary is redundant in the Summary tool results
   - not sure how to use document_topics
   - DONE add source/filepath to results
-  - need to fix raw results = true requirement
+  - need to fix raw results = true requirement, i think?
+  - play around with this
 - add other loaders - png, docs, txt, pdfs, etc
 
 - [x] implement ObsidianLoader, add tags and created/updated dates to qdrant payload

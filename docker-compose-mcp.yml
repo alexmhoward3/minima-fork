@@ -37,6 +37,7 @@ services:
     volumes:
       - ${LOCAL_FILES_PATH}:/usr/src/app/local_files/
       - ./indexer:/usr/src/app
+      - ./indexer/.minimaignore:/usr/src/app/local_files/.minimaignore
       - huggingface_cache:/root/.cache/huggingface      
     ports:
       - 8001:8000

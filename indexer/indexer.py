@@ -378,6 +378,82 @@ class Indexer:
     def embed(self, query: str):
         return self.embed_model.embed_query(query)
         
+    def cleanup_ignored_files(self) -> Dict[str, any]:
+        """Remove documents from ignored directories from the index"""
+        try:
+            from qdrant_client.http.models import Filter, FieldCondition, MatchAny, MatchText
+            
+            # Log all documents first to see what paths we have
+            all_results = self.qdrant.scroll(
+                collection_name=self.config.QDRANT_COLLECTION,
+                limit=1000
+            )
+            
+            if all_results and all_results[0]:
+                logger.info("Found documents with paths:")
+                for point in all_results[0]:
+                    if 'metadata' in point.payload and 'file_path' in point.payload['metadata']:
+                        logger.info(f"File path: {point.payload['metadata']['file_path']}")
+            
+            # Patterns to match in file paths - include variations
+            ignored_patterns = [
+                '.trash', 'trash/', '.trash/', 
+                '.obsidian', '.obsidian/', 
+                '.smart-env', '.smart-env/',
+                '/.trash/', '/trash/',
+                '/.obsidian/', 
+                '/.smart-env/'
+            ]
+            
+            # Find documents matching these patterns using text matching
+            conditions = [
+                FieldCondition(
+                    key="metadata.file_path",
+                    match=MatchText(text=pattern)
+                )
+                for pattern in ignored_patterns
+            ]
+            
+            # Create a filter that matches any of these patterns
+            cleanup_filter = Filter(should=conditions)
+            
+            # Get matching points to count them and log them
+            results = self.qdrant.scroll(
+                collection_name=self.config.QDRANT_COLLECTION,
+                scroll_filter=cleanup_filter,
+                limit=1000  # Adjust if you have more documents
+            )
+            
+            # Log matched documents
+            if results and results[0]:
+                logger.info("Found documents matching ignore patterns:")
+                for point in results[0]:
+                    if 'metadata' in point.payload and 'file_path' in point.payload['metadata']:
+                        logger.info(f"Matched file path: {point.payload['metadata']['file_path']}")
+
+            
+            if not results or not results[0]:
+                return {"message": "No documents found matching cleanup criteria", "deleted_count": 0}
+            
+            # Get the IDs of documents to delete
+            points_to_delete = [point.id for point in results[0]]
+            
+            # Delete the documents
+            self.qdrant.delete(
+                collection_name=self.config.QDRANT_COLLECTION,
+                points_selector=points_to_delete
+            )
+            
+            return {
+                "message": "Successfully cleaned up ignored files",
+                "deleted_count": len(points_to_delete),
+                "deleted_ids": points_to_delete
+            }
+            
+        except Exception as e:
+            logger.error(f"Cleanup failed: {str(e)}")
+            return {"error": f"Unable to clean up ignored files: {str(e)}"}
+        
     def find_by_date_range(self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None) -> Dict[str, any]:
         """Retrieve documents within a specified date range, sorted by date"""
         try:

@@ -47,9 +47,5 @@ C:\Users\Alex\Documents\Projects\minima-fork\docker-compose-mcp.yml
 </files>
 
 <task>
-I've implemented a Deep Search tool in the MCP server.py, but I want to refactor the tools there into separate tools. I've written up an implementation plan C:\Users\Alex\Documents\Projects\minima-fork\project_docs\clarifying-tools.md. I've finished Phase 1, and I want to continue with Phase 4: Document Trends Tool
-
-The aim is to refactor the tools and make the tools clear for LLM use. They should keep operations focused and atomic. 
-
-First review the implementation plan, then review the necessary files. When you've done that, we can begin with the first step.
+When i run mcp tools like document_summary, i notice several files in the C:\Users\Alex\OneDrive\Apps\remotely-save\Obsidian Vault.trash folder, even though .trash in .minimaignore. there's a function in indexer.py that should prevent from indexing those folders. can you help debug that? 
 </task>

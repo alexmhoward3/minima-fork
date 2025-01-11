@@ -1,0 +1,8 @@
+.*/*
+.*
+.trash/*
+*.trash/*
+.obsidian/*
+.obsidian/
+.smart-env/*
+.smart-env/
