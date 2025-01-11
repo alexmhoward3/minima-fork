@@ -48,7 +48,15 @@ async def request_data(query):
             return { "error": str(e) }
 
 async def request_deep_search(query):
-    logger.debug(f"LOCAL_FILES_PATH from env: {os.environ.get('LOCAL_FILES_PATH')}")
+    # Get environment variable for local files path with fallback
+    local_files_path = os.environ.get('LOCAL_FILES_PATH')
+    if not local_files_path:
+        # Fallback to the containerized path which should work in Docker
+        local_files_path = '/usr/src/app/local_files'
+        logger.warning(f"LOCAL_FILES_PATH not set, falling back to container path: {local_files_path}")
+    else:
+        logger.debug(f"Using LOCAL_FILES_PATH from env: {local_files_path}")
+
 
     """
     Handle deep search requests with advanced filtering and analysis capabilities.
@@ -144,20 +152,10 @@ async def request_deep_search(query):
                             except:
                                 metadata = {}
                         
-                        file_path = metadata.get('file_path', result.get('file_path', 'Unknown'))
+                        file_path = metadata.get('file_path', 'Unknown')
                         logger.debug(f"Initial file_path: {file_path}")
                         
-                        # Get environment variable with a default value
-                        local_files_path = os.environ.get('LOCAL_FILES_PATH', '')
-                        if not local_files_path:
-                            # Fallback to hardcoded path if env var not available
-                            local_files_path = r"C:\Users\Alex\OneDrive\Apps\remotely-save\Obsidian Vault"
-                        
-                        # Process container path if present
                         if file_path != 'Unknown':
-                            if file_path.startswith('/usr/src/app/local_files/'):
-                                file_path = file_path[len('/usr/src/app/local_files/'):]
-                            # Ensure proper path joining
                             file_path = os.path.normpath(os.path.join(local_files_path, file_path.lstrip('/')))
                         
                         logger.debug(f"Final file_path: {file_path}")
