@@ -10,6 +10,13 @@
   - Proper timestamp handling
   - Standardized metadata format
 - Enhanced search with metadata relevance scoring
+- Document summarization and analysis tools:
+  - `document_summary`
+  - `document_timeline`
+  - `document_topics`
+  - `document_trends`
+  - `query`
+  - `deep_search`
 
 ## What's left to build
 - Improve cross-document relevance
@@ -19,4 +26,4 @@
 - Wikilink extraction still needs work.
 
 ## Progress status
-The project has completed major improvements in metadata handling and document processing.
+The project has completed another major milestone with the addition of document summarization and analysis tools.

@@ -29,3 +29,14 @@ The system is built with a Python backend for indexing and a frontend for search
   - Tags as filterable attributes
   - YAML frontmatter as structured payload
   - Backlinks tracked in payload metadata (deferred for future implementation)
+- Document analysis pipeline:
+  - The `deep_search` tool provides advanced search and analysis capabilities.
+  - It allows filtering by date range and tags.
+  - It supports different analysis modes:
+    - `summary`: Provides a concise summary of key documents.
+    - `timeline`: Generates a chronological timeline of documents.
+    - `topics`: Groups documents by topics/tags.
+    - `trends`: Analyzes document frequency over time.
+  - The `query` tool provides basic semantic search.
+  - The `document_summary`, `document_timeline`, `document_topics`, and `document_trends` tools offer specialized analysis functionalities.
+  - These tools are integrated into the MCP server and can be called via the `call_tool` method.

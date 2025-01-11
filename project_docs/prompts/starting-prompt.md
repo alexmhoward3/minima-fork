@@ -47,5 +47,5 @@ C:\Users\Alex\Documents\Projects\minima-fork\docker-compose-mcp.yml
 </files>
 
 <task>
-When i run mcp tools like document_summary, i notice several files in the C:\Users\Alex\OneDrive\Apps\remotely-save\Obsidian Vault.trash folder, even though .trash in .minimaignore. there's a function in indexer.py that should prevent from indexing those folders. can you help debug that? 
+I would like to start implementing other doc loaders, beginning with PDFs. Don't make any code changes. Just walk me through how we'd do that based on my current codebase.
 </task>
