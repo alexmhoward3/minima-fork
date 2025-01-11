@@ -160,7 +160,13 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
 
 ## Phase 3: Document Topics Tool
 
-### Implementation
+Status: Completed ✅
+- [x] Tool structure implemented in tools/document_topics.py
+- [x] Integration with server.py complete
+- [x] Fixed mode handling bug
+- [x] Added topic frequency filtering
+
+### Final Implementation
 ```python
 class DocumentTopicsQuery(BaseModel):
     query: Optional[str] = Field(
@@ -189,30 +195,47 @@ class DocumentTopicsQuery(BaseModel):
         description="Include raw document contents"
     )
 
-@app.list_tools()
-async def list_tools() -> list[types.Tool]:
-    return [
-        types.Tool(
-            name="document_topics",
-            description="Extract and group key topics from notes",
-            inputSchema=DocumentTopicsQuery.model_json_schema()
-        )
-    ]
+def get_tool() -> Tool:
+    """Return the tool definition for document topics analysis"""
+    return Tool(
+        name="document_topics",
+        description="Extract and group key topics from notes. Identifies main themes, concepts, and their relationships across your documents.",
+        inputSchema=DocumentTopicsQuery.model_json_schema()
+    )
 
-@app.call_tool()
-async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
-    if name == "document_topics":
+async def handle_request(arguments: dict) -> List[TextContent]:
+    """Handle a document topics analysis request"""
+    try:
+        # Validate and process arguments
         query = DocumentTopicsQuery(**arguments)
-        results = await process_document_topics(query)
-        return [types.TextContent(type="text", text=results)]
+        
+        # Convert to deep search query
+        output = await request_deep_search(DeepSearchQuery(
+            query=query.query,
+            mode=SearchMode.TOPICS,
+            start_date=query.start_date,
+            end_date=query.end_date,
+            tags=query.tags,
+            include_raw=query.include_raw
+        ))
+        
+        # Format and return results...
+
 ```
 
-### User Scenarios
+### Implementation Notes
+- Created standalone module in tools/document_topics.py
+- Uses DeepSearchQuery with SearchMode.TOPICS
+- Properly handles metadata and raw results
+- Includes topic frequency filtering
+- Follows same pattern as document_summary and document_timeline tools
+
+### User Scenarios (Tested)
 1. "What are the main themes in my research notes?"
 2. "Find common concepts across my literature notes"
 3. "Identify key topics in my notes about programming"
 
-### Testing Steps
+### Completed Testing Steps
 1. Test topic extraction from notes
 2. Test topic grouping by relevance
 3. Test topic frequency filtering

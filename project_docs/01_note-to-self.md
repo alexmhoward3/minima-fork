@@ -25,6 +25,7 @@ This basically just parses frontmatter, tags and dataview (?). Capturing links i
   - DONE want to expand context and drop the "query" requirement. Just show all notes from a date range.  
   - expand on timeline, topics and trends analysis modes. Trends is neat.
   - Summary is redundant in the Summary tool results
+  - not sure how to use document_topics
   - DONE add source/filepath to results
 - add other loaders - png, docs, txt, pdfs, etc
 
