@@ -61,8 +61,6 @@ a) Get documents within that date range
 b) Format them appropriately
 c) Return them to me for summarization
 
-I have the tool set up and created, and i can get responses via the MCP inspector and curl commands. but anytime claude uses it, the application crashes. 
-
-DO NOT DO ANYTHING ELSE UNTIL YOU'VE REVIEWED C:\Users\Alex\Documents\Projects\minima-fork\project_docs\mcp-full-text.md
-
-Then suggest changes.</task>
+I have the tool set up and created, and i can get responses via the MCP inspector and curl commands. but I want to explore a few changes: 
+- right now, the "query" field is required, but i want a method to answer the user query "summarize all my notes from this week". That would have no query, just time start and end dates. Start with making the query field optional and adding a method to the Indexer class to efficiently retrieve documents by date range without requiring semantic search. All the metadata is stored as payload fields in Qdrant, and i want a  date-range-only search to return all documents within the date range, sorted by date. I'll look into indexing by date at a later time.
+</task>

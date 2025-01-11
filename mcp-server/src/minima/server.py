@@ -47,7 +47,7 @@ class SearchMode(str, Enum):
 
 
 class DeepSearchQuery(BaseModel):
-    query: str = Field(description="Search query")
+    query: Optional[str] = Field(description="Search query", default=None)
     mode: SearchMode = Field(
         description="Type of analysis to perform",
         default=SearchMode.SUMMARY
@@ -109,7 +109,7 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "Search query"
+                        "description": "Search query (optional)"
                     },
                     "mode": {
                         "type": "string",
@@ -140,7 +140,7 @@ async def list_tools() -> list[Tool]:
                         "description": "Filter by tags (optional)"
                     }
                 },
-                "required": ["query"]
+                "required": []
             }
         )
     ]

@@ -199,7 +199,8 @@ class Indexer:
                                 value = doc.metadata[date_field]
                                 if isinstance(value, (int, float)):
                                     # Handle Unix timestamp
-                                    iso_date = datetime.fromtimestamp(value).isoformat()
+                                    timestamp = float(value)
+                                    iso_date = datetime.fromtimestamp(timestamp).isoformat()
                                 elif isinstance(value, str):
                                     # Try parsing ISO format or common date formats
                                     try:
@@ -207,10 +208,13 @@ class Indexer:
                                     except ValueError:
                                         import dateutil.parser
                                         dt = dateutil.parser.parse(value)
+                                        timestamp = dt.timestamp()
                                     iso_date = dt.isoformat()
                                 else:
                                     continue
+                                # Store both timestamp and ISO date
                                 doc.metadata[alt_field] = iso_date
+                                doc.metadata[f"{alt_field}_timestamp"] = timestamp
                             except Exception as e:
                                 logger.debug(f"Could not parse {date_field} value '{value}': {e}")
 
@@ -218,7 +222,9 @@ class Indexer:
                     doc.metadata.update({
                         "tags": list(tags),
                         "created_at": doc.metadata.get('created_at'),
-                        "modified_at": doc.metadata.get('modified_at')
+                        "created_at_timestamp": doc.metadata.get('created_at_timestamp'),
+                        "modified_at": doc.metadata.get('modified_at'),
+                        "modified_at_timestamp": doc.metadata.get('modified_at_timestamp')
                     })
 
                     # Clean up redundant fields
@@ -371,6 +377,104 @@ class Indexer:
 
     def embed(self, query: str):
         return self.embed_model.embed_query(query)
+        
+    def find_by_date_range(self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None) -> Dict[str, any]:
+        """Retrieve documents within a specified date range, sorted by date"""
+        try:
+            # Build filter conditions using Qdrant's filter syntax
+            from qdrant_client.http.models import Filter, FieldCondition, Range
+            
+            conditions = []
+            if start_date:
+                # Convert datetime to Unix timestamp
+                start_ts = start_date.timestamp()
+                logger.info(f"Start date {start_date.isoformat()} converted to timestamp: {start_ts}")
+                conditions.append(
+                    FieldCondition(
+                        key="metadata.modified_at_timestamp",
+                        range=Range(gte=start_ts)
+                    )
+                )
+            if end_date:
+                # Convert datetime to Unix timestamp
+                end_ts = end_date.timestamp()
+                logger.info(f"End date {end_date.isoformat()} converted to timestamp: {end_ts}")
+                conditions.append(
+                    FieldCondition(
+                        key="metadata.modified_at_timestamp",
+                        range=Range(lte=end_ts)
+                    )
+                )
+                
+            filter_conditions = Filter(must=conditions) if conditions else None
+            
+            # Log the filter conditions
+            logger.info(f"Using filter conditions: {filter_conditions}")
+
+            # Query Qdrant using the filter
+            results = self.qdrant.scroll(
+                collection_name=self.config.QDRANT_COLLECTION,
+                scroll_filter=filter_conditions,
+                limit=100  # Adjust limit as needed
+            )
+
+            if not results or not results[0]:
+                logger.info("No results found matching the date range")
+                return {"links": set(), "output": []}
+
+            # Process results
+            links = set()
+            processed_results = []
+            seen_contents = set()
+
+            for point in results[0]:
+                try:
+                    # Skip if we've seen this content before
+                    if point.payload["page_content"] in seen_contents:
+                        continue
+                    seen_contents.add(point.payload["page_content"])
+
+                    # Process file path
+                    path = point.payload["metadata"]["file_path"].replace(
+                        self.config.CONTAINER_PATH,
+                        self.config.LOCAL_FILES_PATH
+                    )
+                    links.add(f"file://{path}")
+
+                    # Create result entry
+                    result = {
+                        "content": point.payload["page_content"],
+                        "metadata": {
+                            "file_path": path,
+                            "tags": point.payload["metadata"].get("tags", []),
+                            "created_at": point.payload["metadata"].get("created_at"),
+                            "modified_at": point.payload["metadata"].get("modified_at"),
+                            "relevance_score": 1.0  # Base score for date-based results
+                        }
+                    }
+                    processed_results.append(result)
+                except Exception as e:
+                    logger.error(f"Error processing result: {str(e)}")
+                    continue
+
+            # Sort by modified_at date
+            processed_results.sort(
+                key=lambda x: x["metadata"]["modified_at"] or "",
+                reverse=True
+            )
+            
+            logger.info(f"Found {len(processed_results)} documents in date range")
+
+            return {
+                "links": links,
+                "output": processed_results,
+                "metadata": [r["metadata"] for r in processed_results],
+                "relevance_scores": [r["metadata"]["relevance_score"] for r in processed_results]
+            }
+
+        except Exception as e:
+            logger.error(f"Date range search failed: {str(e)}")
+            return {"error": "Unable to search by date range"}
         
     def verify_document_uuid(self, document) -> Dict[str, any]:
         """Check if a document with the same content-based UUID exists"""

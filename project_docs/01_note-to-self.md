@@ -19,8 +19,6 @@ This basically just parses frontmatter, tags and dataview (?). Capturing links i
 
 ## Next thing to try
 - finish deep search implementation. Currently:
-  - tagging is still fucked
-  - claude doesn't crash though
   - want to expand context and drop the "query" requirement. Just show all notes from a date range.  
   - expand on timeline, topics and trends analysis modes. Trends is neat.
   - add source/filepath to results
@@ -34,6 +32,9 @@ This basically just parses frontmatter, tags and dataview (?). Capturing links i
 - [x] fix duplicate entries (cleanup.py) (better to just nuke the vector database)
 - [x] establish method of preventing duplicates (UUIDs)
 - [x] added "deep search" tool, which allows claude to run queries like "summary" 
+- [ ] might consider taking the requester services out of indexer. it currently requires indexer.py to be running
+- [ ] fix "source" in "query" tool: Source: C:\Users\Alex\OneDrive\Apps\remotely-save\Obsidian VaultWork/03-Resources/Meetings/2024-01-25 Tree test for main nav.md
+- [ ] look at indexing - this could make date searches more efficient if i add datetime indexing (ie an index of every note's modified at date)
 - [ ] how does the reranker work in the minima indexer > qdrant vector store > mcp query workflow? Answer: i think it was showign deduplicated results and returning only one of dozens of duplicates
 - [ ] consider adding a progress bar to indexing
 - [x] the tool just returns one search result. how can we improve that?

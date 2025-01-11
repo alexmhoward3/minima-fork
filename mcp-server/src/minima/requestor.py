@@ -63,9 +63,12 @@ async def request_deep_search(query):
 
         # Construct payload with explicit validation
         payload = {
-            "query": query.query.strip(),  # Basic sanitization
             "mode": mode,
         }
+        
+        # Add query if present
+        if query.query:
+            payload["query"] = query.query.strip()  # Basic sanitization
 
         # Handle dates with validation
         try:

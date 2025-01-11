@@ -41,6 +41,63 @@ class DeepSearchQuery(BaseModel):
     include_raw: bool = False
     tags: Optional[List[str]] = None
 
+async def _perform_semantic_search(request: DeepSearchQuery):
+    # Create semantic variations of the query
+    query_variations = [
+        request.query,  # Original query
+        f"content about {request.query}",  # Content variation
+        f"document mentioning {request.query}",  # Document variation
+        f"meeting about {request.query}",  # Meeting variation
+        f"notes about {request.query}",  # Notes variation
+        f"information regarding {request.query}",  # Additional variation
+        f"discussion of {request.query}"  # Discussion variation
+    ]
+    
+    # Use set for deduplication with content hash
+    all_results = []
+    seen_ids = set()
+    
+    for query in query_variations:
+        try:
+            result = indexer.find(query)
+            if not result:
+                logger.warning(f"No results for query variation: {query}")
+                continue
+                
+            if "error" in result:
+                logger.error(f"Error in query variation: {result['error']}")
+                continue
+                
+            if "output" not in result:
+                logger.warning(f"Missing output in result for query: {query}")
+                continue
+                
+            for item in result["output"]:
+                try:
+                    # Validate required fields
+                    if not item.get("content"):
+                        logger.warning("Skipping result with no content")
+                        continue
+                        
+                    # Use content hash for deduplication
+                    content_hash = hash(item["content"])
+                    if content_hash not in seen_ids:
+                        seen_ids.add(content_hash)
+                        all_results.append(item)
+                except Exception as e:
+                    logger.error(f"Error processing result item: {e}")
+                    continue
+                    
+        except Exception as e:
+            logger.error(f"Error processing query variation '{query}': {e}")
+            continue
+    
+    return {
+        "output": all_results,
+        "metadata": [r["metadata"] for r in all_results],
+        "relevance_scores": [r["metadata"].get("relevance_score", 0) for r in all_results]
+    }
+
 @router.post("/query/deep")
 async def deep_search(request: DeepSearchQuery):
     logger.info(f"Received deep search request: {request}")
@@ -70,67 +127,90 @@ async def deep_search(request: DeepSearchQuery):
             if not request.tags:
                 logger.warning("All provided tags were invalid or empty")
         
-        # Get base search results
-        all_results = []
+        # Choose search method based on whether query is provided
         if request.query:
-            # Do semantic search if query is provided
             logger.info(f"Performing semantic search with query: {request.query}")
-            
-            # Create semantic variations of the query
-            query_variations = [
-                request.query,  # Original query
-                f"content about {request.query}",  # Content variation
-                f"document mentioning {request.query}",  # Document variation
-                f"meeting about {request.query}",  # Meeting variation
-                f"notes about {request.query}",  # Notes variation
-                f"information regarding {request.query}",  # Additional variation
-                f"discussion of {request.query}"  # Discussion variation
-            ]
-            
-            # Use set for deduplication with content hash
-            seen_ids = set()
-            
-            for query in query_variations:
-                try:
-                    result = indexer.find(query)
-                    if not result or "error" in result or "output" not in result:
-                        continue
-                        
-                    for item in result["output"]:
-                        try:
-                            # Validate required fields
-                            if not item.get("content"):
-                                continue
-                                
-                            # Use content hash for deduplication
-                            content_hash = hash(item["content"])
-                            if content_hash not in seen_ids:
-                                seen_ids.add(content_hash)
-                                all_results.append(item)
-                        except Exception as e:
-                            logger.error(f"Error processing result item: {e}")
-                            continue
-                            
-                except Exception as e:
-                    logger.error(f"Error processing query variation '{query}': {e}")
-                    continue
-                    
-            result = {
-                "output": all_results,
-                "metadata": [r["metadata"] for r in all_results],
-                "relevance_scores": [r["metadata"].get("relevance_score", 0) for r in all_results]
-            }
         else:
-            # Do date-range only search if no query provided
-            logger.info(f"Performing date-range search: {request.start_date} to {request.end_date}")
+            logger.info("Performing date-based search without query")
             result = indexer.find_by_date_range(
                 start_date=request.start_date,
-                end_date=request.end_date
+                end_date=request.end_date,
+                tags=request.tags
             )
-            if "error" not in result:
-                all_results = result["output"]
-            
-        logger.info(f"Search returned {len(result.get('output', [])) if isinstance(result, dict) else 0} results")
+            if "error" in result:
+                return result
+            all_results = result.get("output", [])
+            if not all_results:
+                return {
+                    "analysis": "No documents found for the specified date range.",
+                    "metadata": {
+                        "total_documents": 0,
+                        "date_range": f"{request.start_date} to {request.end_date}" if request.start_date and request.end_date else "all time",
+                        "tags": request.tags if request.tags else "no tag filter",
+                        "mode": request.mode
+                    }
+                }
+            # Skip to processing phase
+            return await process_results(all_results, request)
+        
+        # Create semantic variations of the query
+        query_variations = [
+            request.query,  # Original query
+            f"content about {request.query}",  # Content variation
+            f"document mentioning {request.query}",  # Document variation
+            f"meeting about {request.query}",  # Meeting variation
+            f"notes about {request.query}",  # Notes variation
+            f"information regarding {request.query}",  # Additional variation
+            f"discussion of {request.query}"  # Discussion variation
+        ]
+        
+        # Use set for deduplication with content hash
+        all_results = []
+        seen_ids = set()
+        
+        for query in query_variations:
+            try:
+                result = indexer.find(query)
+                if not result:
+                    logger.warning(f"No results for query variation: {query}")
+                    continue
+                    
+                if "error" in result:
+                    logger.error(f"Error in query variation: {result['error']}")
+                    continue
+                    
+                if "output" not in result:
+                    logger.warning(f"Missing output in result for query: {query}")
+                    continue
+                    
+                for item in result["output"]:
+                    try:
+                        # Validate required fields
+                        if not item.get("content"):
+                            logger.warning("Skipping result with no content")
+                            continue
+                            
+                        # Use content hash for deduplication
+                        content_hash = hash(item["content"])
+                        if content_hash not in seen_ids:
+                            seen_ids.add(content_hash)
+                            all_results.append(item)
+                    except Exception as e:
+                        logger.error(f"Error processing result item: {e}")
+                        continue
+                        
+            except Exception as e:
+                logger.error(f"Error processing query variation '{query}': {e}")
+                continue
+        
+        # Combine into single result
+        result = {
+            "output": all_results,
+            "metadata": [r["metadata"] for r in all_results],
+            "relevance_scores": [r["metadata"].get("relevance_score", 0) for r in all_results]
+        }
+        
+        logger.info(f"Combined search returned {len(all_results)} unique results")
 
         # Log the structure of the result for debugging
         logger.debug(f"Result keys: {result.keys() if isinstance(result, dict) else 'Not a dict'}")
@@ -175,12 +255,7 @@ async def deep_search(request: DeepSearchQuery):
 
         # Process and validate results
         processed_results = []
-        
-        if "error" in result:
-            logger.error(f"Base search error: {result['error']}")
-            return result
-
-        for item in result.get("output", []):
+        for item in all_results:
             try:
                 # Validate required fields
                 if not item.get("content") or not item.get("metadata"):
