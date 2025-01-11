@@ -1,9 +1,11 @@
 import logging
 import mcp.server.stdio
-from typing import Annotated
+from typing import Annotated, Optional, List
+from enum import Enum
+from datetime import datetime
 from mcp.server import Server
-from .requestor import request_data
-from pydantic import BaseModel, Field
+from .requestor import request_data, request_deep_search
+from pydantic import BaseModel, Field, validator
 from mcp.server.stdio import stdio_server
 from mcp.shared.exceptions import McpError
 from mcp.server import NotificationOptions, Server
@@ -18,7 +20,6 @@ from mcp.types import (
     INVALID_PARAMS,
     INTERNAL_ERROR,
 )
-
 
 logging.basicConfig(
     level=logging.DEBUG, 
@@ -37,6 +38,56 @@ class Query(BaseModel):
         Field(description="context to find")
     ]
 
+class SearchMode(str, Enum):
+    SUMMARY = "summary"
+    TIMELINE = "timeline"
+    TOPICS = "topics"
+    TRENDS = "trends"
+
+class TimeFrame(str, Enum):
+    TODAY = "today"
+    THIS_WEEK = "this_week"
+    THIS_MONTH = "this_month"
+    THIS_YEAR = "this_year"
+    CUSTOM = "custom"
+
+class DeepSearchQuery(BaseModel):
+    query: str = Field(description="Search query")
+    mode: SearchMode = Field(
+        description="Type of analysis to perform",
+        default=SearchMode.SUMMARY
+    )
+    time_frame: Optional[TimeFrame] = Field(
+        description="Time frame for the search",
+        default=None
+    )
+    start_date: Optional[datetime] = Field(
+        description="Custom start date for search",
+        default=None
+    )
+    end_date: Optional[datetime] = Field(
+        description="Custom end date for search",
+        default=None
+    )
+    include_raw: bool = Field(
+        description="Include raw matching documents in addition to analysis",
+        default=False
+    )
+    tags: Optional[List[str]] = Field(
+        description="Filter by specific tags",
+        default=None
+    )
+
+    @validator('tags', pre=True)
+    def validate_tags(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, str):
+            return [v]  # Convert single string to list
+        if isinstance(v, list):
+            return v
+        raise ValueError('tags must be a string or list of strings')
+
 @server.list_tools()
 async def list_tools() -> list[Tool]:
     return [
@@ -44,6 +95,13 @@ async def list_tools() -> list[Tool]:
             name="query",
             description="Find a context in local files (PDF, CSV, DOCX, MD, TXT)",
             inputSchema=Query.model_json_schema(),
+        ),
+        Tool(
+            name="deep_search",
+            description="""Advanced search with temporal filtering and analysis capabilities.
+            Supports modes: summary, timeline, topics, trends.
+            Can filter by time frame and tags.""",
+            inputSchema=DeepSearchQuery.model_json_schema(),
         )
     ]
     
@@ -64,58 +122,99 @@ async def list_prompts() -> list[Prompt]:
     
 @server.call_tool()
 async def call_tool(name, arguments: dict) -> list[TextContent]:
-    if name != "query":
+    if name == "query":
+        try:
+            args = Query(**arguments)
+        except ValueError as e:
+            logging.error(str(e))
+            raise McpError(INVALID_PARAMS, str(e))
+            
+        context = args.text
+        logging.info(f"Context: {context}")
+        if not context:
+            logging.error("Context is required")
+            raise McpError(INVALID_PARAMS, "Context is required")
+
+        output = await request_data(context)
+        if not output:
+            return [TextContent(type="text", text="No results found. Try broadening your search criteria.")]
+            
+        if "error" in output:
+            logging.error(output["error"])
+            raise McpError(INTERNAL_ERROR, output["error"])
+        
+        if not output.get("results"):
+            return [TextContent(type="text", text="No results found.")]
+        
+        # Format results while preserving full context
+        formatted_results = []
+        for result in output["results"]:
+            for i, item in enumerate(result["output"]):
+                score = result["relevance_scores"][i]
+                metadata = result["metadata"][i]
+                
+                # Transform the file path to be more readable
+                file_path = metadata.get('file_path', 'Unknown path')
+                if file_path.startswith('/usr/src/app/local_files/'):
+                    file_path = file_path[len('/usr/src/app/local_files/'):]
+                
+                result_text = [
+                    f"\nResult {i+1} (Relevance: {score:.2f}):",
+                    f"Source: {file_path}",
+                    item["content"]  # Use full content without splitting
+                ]
+                
+                if metadata.get("tags"):
+                    result_text.append(f"Tags: {', '.join(metadata['tags'])}")
+                if metadata.get("modified_at"):
+                    result_text.append(f"Last modified: {metadata['modified_at']}")
+                
+                formatted_results.append("\n".join(result_text))
+        
+        return [TextContent(type="text", text="\n".join(formatted_results))]
+    
+    elif name == "deep_search":
+        try:
+            args = DeepSearchQuery(**arguments)
+            logging.info(f"Deep search args: {args.dict()}")
+        except ValueError as e:
+            logging.error(str(e))
+            raise McpError(INVALID_PARAMS, str(e))
+        
+        output = await request_deep_search(args)
+        if "error" in output:
+            logging.error(output["error"])
+            raise McpError(INTERNAL_ERROR, output["error"])
+        
+        # Format the response based on the search mode
+        formatted_response = []
+        
+        if output.get("analysis"):
+            formatted_response.append(f"\nAnalysis ({args.mode}):")
+            formatted_response.append(output["analysis"])
+        
+        if args.include_raw and output.get("raw_results"):
+            formatted_response.append("\nRaw Results:")
+            for i, result in enumerate(output["raw_results"], 1):
+                formatted_response.append(f"\nDocument {i}:")
+                formatted_response.append(f"Source: {result['source']}")
+                formatted_response.append(result['content'])
+                if result.get('tags'):
+                    formatted_response.append(f"Tags: {', '.join(result['tags'])}")
+                if result.get('modified_at'):
+                    formatted_response.append(f"Last modified: {result['modified_at']}")
+        
+        metadata = output.get("metadata", {})
+        if metadata:
+            formatted_response.append("\nMetadata:")
+            for key, value in metadata.items():
+                formatted_response.append(f"{key}: {value}")
+        
+        return [TextContent(type="text", text="\n".join(formatted_response))]
+    
+    else:
         logging.error(f"Unknown tool: {name}")
         raise ValueError(f"Unknown tool: {name}")
-
-    logging.info("Calling tools")
-    try:
-        args = Query(**arguments)
-    except ValueError as e:
-        logging.error(str(e))
-        raise McpError(INVALID_PARAMS, str(e))
-        
-    context = args.text
-    logging.info(f"Context: {context}")
-    if not context:
-        logging.error("Context is required")
-        raise McpError(INVALID_PARAMS, "Context is required")
-
-    output = await request_data(context)
-    if "error" in output:
-        logging.error(output["error"])
-        raise McpError(INTERNAL_ERROR, output["error"])
-    
-    logging.info(f"Get prompt: {output}")
-    if not output.get("results"):
-        return [TextContent(type="text", text="No results found.")]
-    
-    # Format results while preserving full context
-    formatted_results = []
-    for result in output["results"]:
-        for i, item in enumerate(result["output"]):
-            score = result["relevance_scores"][i]
-            metadata = result["metadata"][i]
-            
-            # Transform the file path to be more readable
-            file_path = metadata.get('file_path', 'Unknown path')
-            if file_path.startswith('/usr/src/app/local_files/'):
-                file_path = file_path[len('/usr/src/app/local_files/'):]
-            
-            result_text = [
-                f"\nResult {i+1} (Relevance: {score:.2f}):",
-                f"Source: {file_path}",
-                item["content"]  # Use full content without splitting
-            ]
-            
-            if metadata.get("tags"):
-                result_text.append(f"Tags: {', '.join(metadata['tags'])}")
-            if metadata.get("modified_at"):
-                result_text.append(f"Last modified: {metadata['modified_at']}")
-            
-            formatted_results.append("\n".join(result_text))
-    
-    return [TextContent(type="text", text="\n".join(formatted_results))]
     
 @server.get_prompt()
 async def get_prompt(name: str, arguments: dict | None) -> GetPromptResult:

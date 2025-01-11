@@ -184,10 +184,13 @@ class Indexer:
                     # Handle tags
                     tags = set()
                     if 'tags' in doc.metadata:
+                        logger.info(f"Processing tags from metadata: {doc.metadata['tags']} (type: {type(doc.metadata['tags'])}))")
                         if isinstance(doc.metadata['tags'], str):
                             tags.update(tag.strip() for tag in doc.metadata['tags'].split(','))
                         elif isinstance(doc.metadata['tags'], (list, set)):
                             tags.update(doc.metadata['tags'])
+                        logger.info(f"Processed tags: {tags}")
+
 
                     # Standardize dates
                     for date_field, alt_field in [('created', 'created_at'), ('last_modified', 'modified_at')]:
@@ -260,8 +263,23 @@ class Indexer:
     def find(self, query: str) -> Dict[str, any]:
         try:
             logger.info(f"Searching for: {query}")
-            found = self.document_store.search(query, search_type="similarity")
+            # First do semantic search with higher limit
+            found = self.document_store.search(
+                query,
+                search_type="similarity_score_threshold",
+                score_threshold=0.5,  # Adjust this threshold as needed
+                k=20  # Get more results initially for better filtering
+            )
             
+            # Log the exact structure from Qdrant
+            if found:
+                logger.info("Structure of first found document:")
+                logger.info(f"Document keys: {found[0].__dict__.keys()}")
+                logger.info(f"Metadata: {found[0].metadata}")
+                logger.info(f"Tags in metadata: {found[0].metadata.get('tags', [])}")
+                if 'tags' in found[0].metadata:
+                    logger.info(f"Tag type in metadata: {type(found[0].metadata['tags'])}")
+
             if not found:
                 logger.info("No results found")
                 return {"links": set(), "output": ""}
