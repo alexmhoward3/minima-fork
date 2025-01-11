@@ -44,12 +44,7 @@ class SearchMode(str, Enum):
     TOPICS = "topics"
     TRENDS = "trends"
 
-class TimeFrame(str, Enum):
-    TODAY = "today"
-    THIS_WEEK = "this_week"
-    THIS_MONTH = "this_month"
-    THIS_YEAR = "this_year"
-    CUSTOM = "custom"
+
 
 class DeepSearchQuery(BaseModel):
     query: str = Field(description="Search query")
@@ -57,10 +52,7 @@ class DeepSearchQuery(BaseModel):
         description="Type of analysis to perform",
         default=SearchMode.SUMMARY
     )
-    time_frame: Optional[TimeFrame] = Field(
-        description="Time frame for the search",
-        default=None
-    )
+
     start_date: Optional[datetime] = Field(
         description="Custom start date for search",
         default=None
@@ -98,10 +90,58 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="deep_search",
-            description="""Advanced search with temporal filtering and analysis capabilities.
-            Supports modes: summary, timeline, topics, trends.
-            Can filter by time frame and tags.""",
-            inputSchema=DeepSearchQuery.model_json_schema(),
+            description="""Advanced semantic search with temporal filtering and analysis capabilities.
+            
+            Modes:
+            - summary: Summarize matching documents
+            - timeline: Show documents in chronological order
+            - topics: Group documents by tags/topics
+            - trends: Analyze document frequency over time
+            
+            Examples:
+            - Find recent meetings about project X
+            - Show timeline of documents about Y
+            - Analyze trends in discussions about Z
+            - Get topics from documents tagged with 'research'
+            """,
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query"
+                    },
+                    "mode": {
+                        "type": "string",
+                        "enum": ["summary", "timeline", "topics", "trends"],
+                        "description": "Analysis mode",
+                        "default": "summary"
+                    },
+                    "start_date": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Start date for filtering (optional)"
+                    },
+                    "end_date": {
+                        "type": "string", 
+                        "format": "date-time",
+                        "description": "End date for filtering (optional)"
+                    },
+                    "include_raw": {
+                        "type": "boolean",
+                        "description": "Include raw document contents",
+                        "default": False
+                    },
+                    "tags": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Filter by tags (optional)"
+                    }
+                },
+                "required": ["query"]
+            }
         )
     ]
     
@@ -178,39 +218,62 @@ async def call_tool(name, arguments: dict) -> list[TextContent]:
             args = DeepSearchQuery(**arguments)
             logging.info(f"Deep search args: {args.dict()}")
         except ValueError as e:
-            logging.error(str(e))
-            raise McpError(INVALID_PARAMS, str(e))
-        
-        output = await request_deep_search(args)
-        if "error" in output:
-            logging.error(output["error"])
-            raise McpError(INTERNAL_ERROR, output["error"])
-        
-        # Format the response based on the search mode
-        formatted_response = []
-        
-        if output.get("analysis"):
-            formatted_response.append(f"\nAnalysis ({args.mode}):")
-            formatted_response.append(output["analysis"])
-        
-        if args.include_raw and output.get("raw_results"):
-            formatted_response.append("\nRaw Results:")
-            for i, result in enumerate(output["raw_results"], 1):
-                formatted_response.append(f"\nDocument {i}:")
-                formatted_response.append(f"Source: {result['source']}")
-                formatted_response.append(result['content'])
-                if result.get('tags'):
-                    formatted_response.append(f"Tags: {', '.join(result['tags'])}")
-                if result.get('modified_at'):
-                    formatted_response.append(f"Last modified: {result['modified_at']}")
-        
-        metadata = output.get("metadata", {})
-        if metadata:
-            formatted_response.append("\nMetadata:")
-            for key, value in metadata.items():
-                formatted_response.append(f"{key}: {value}")
-        
-        return [TextContent(type="text", text="\n".join(formatted_response))]
+            logging.error(f"Validation error: {str(e)}")
+            return [TextContent(
+                type="text", 
+                text=f"Invalid search parameters: {str(e)}"
+            )]
+            
+        try:
+            output = await request_deep_search(args)
+            
+            if not output or "error" in output:
+                error_msg = output.get("error", "Search failed") if output else "No results"
+                return [TextContent(
+                    type="text",
+                    text=f"Search error: {error_msg}"
+                )]
+                
+            # Format response
+            formatted_response = []
+            
+            if output.get("analysis"):
+                formatted_response.append(f"\nAnalysis ({args.mode}):")
+                formatted_response.append(output["analysis"])
+            
+            if args.include_raw and output.get("raw_results"):
+                formatted_response.append("\nRaw Results:")
+                for i, result in enumerate(output["raw_results"], 1):
+                    formatted_response.append(f"\nDocument {i}:")
+                    # Safely access nested fields
+                    formatted_response.append(f"Source: {result.get('metadata', {}).get('file_path', 'Unknown')}")
+                    formatted_response.append(result.get('content', 'No content'))
+                    
+                    tags = result.get('metadata', {}).get('tags', [])
+                    if tags:
+                        formatted_response.append(f"Tags: {', '.join(tags)}")
+                        
+                    modified = result.get('metadata', {}).get('modified_at')
+                    if modified:
+                        formatted_response.append(f"Last modified: {modified}")
+            
+            metadata = output.get("metadata", {})
+            if metadata:
+                formatted_response.append("\nMetadata:")
+                for key, value in metadata.items():
+                    formatted_response.append(f"{key}: {value}")
+            
+            return [TextContent(
+                type="text", 
+                text="\n".join(formatted_response)
+            )]
+            
+        except Exception as e:
+            logging.exception("Deep search failed")
+            return [TextContent(
+                type="text",
+                text=f"Search failed: {str(e)}"
+            )]
     
     else:
         logging.error(f"Unknown tool: {name}")

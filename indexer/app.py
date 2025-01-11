@@ -38,31 +38,83 @@ class DeepSearchQuery(BaseModel):
 async def deep_search(request: DeepSearchQuery):
     logger.info(f"Received deep search request: {request}")
     try:
+        # Validate date range if provided
+        if request.start_date and request.end_date:
+            if request.end_date < request.start_date:
+                raise ValueError("End date must be after start date")
+                
+            # Ensure dates aren't in the future
+            now = datetime.now()
+            if request.end_date > now:
+                request.end_date = now
+                logger.warning("Adjusted end_date to current time")
+                
+        # Validate tags if provided
+        if request.tags:
+            clean_tags = []
+            for tag in request.tags:
+                if isinstance(tag, str):
+                    # Strip '#' and whitespace, ensure non-empty
+                    cleaned = tag.strip('#').strip()
+                    if cleaned:
+                        clean_tags.append(cleaned)
+            request.tags = clean_tags
+            
+            if not request.tags:
+                logger.warning("All provided tags were invalid or empty")
+        
         # Get base search results with semantic matching
         logger.info(f"Performing semantic search with query: {request.query}")
         
-        # Create variations of the query for better matching
+        # Create semantic variations of the query
         query_variations = [
             request.query,  # Original query
             f"content about {request.query}",  # Content variation
             f"document mentioning {request.query}",  # Document variation
             f"meeting about {request.query}",  # Meeting variation
-            f"notes about {request.query}"  # Notes variation
+            f"notes about {request.query}",  # Notes variation
+            f"information regarding {request.query}",  # Additional variation
+            f"discussion of {request.query}"  # Discussion variation
         ]
         
-        # Combine results from all query variations
+        # Use set for deduplication with content hash
         all_results = []
         seen_ids = set()
         
         for query in query_variations:
-            result = indexer.find(query)
-            if "output" in result:
+            try:
+                result = indexer.find(query)
+                if not result:
+                    logger.warning(f"No results for query variation: {query}")
+                    continue
+                    
+                if "error" in result:
+                    logger.error(f"Error in query variation: {result['error']}")
+                    continue
+                    
+                if "output" not in result:
+                    logger.warning(f"Missing output in result for query: {query}")
+                    continue
+                    
                 for item in result["output"]:
-                    # Use content hash as ID to deduplicate
-                    content_hash = hash(item["content"])
-                    if content_hash not in seen_ids:
-                        seen_ids.add(content_hash)
-                        all_results.append(item)
+                    try:
+                        # Validate required fields
+                        if not item.get("content"):
+                            logger.warning("Skipping result with no content")
+                            continue
+                            
+                        # Use content hash for deduplication
+                        content_hash = hash(item["content"])
+                        if content_hash not in seen_ids:
+                            seen_ids.add(content_hash)
+                            all_results.append(item)
+                    except Exception as e:
+                        logger.error(f"Error processing result item: {e}")
+                        continue
+                        
+            except Exception as e:
+                logger.error(f"Error processing query variation '{query}': {e}")
+                continue
         
         # Combine into single result
         result = {
@@ -101,90 +153,253 @@ async def deep_search(request: DeepSearchQuery):
                 logger.info(f"Keys in first output metadata: {result['output'][0]['metadata'].keys()}")
                 logger.info(f"Modified date from metadata: {result['output'][0]['metadata'].get('modified_at')}")
 
+        if not all_results:
+            logger.info("No matching documents found")
+            return {
+                "analysis": "No documents found matching your criteria.",
+                "metadata": {
+                    "total_documents": 0,
+                    "date_range": f"{request.start_date} to {request.end_date}" if request.start_date and request.end_date else "all time",
+                    "tags": request.tags if request.tags else "no tag filter",
+                    "query": request.query,
+                    "mode": request.mode
+                }
+            }
 
+        # Process and validate results
+        processed_results = []
+        for item in all_results:
+            try:
+                # Validate required fields
+                if not item.get("content") or not item.get("metadata"):
+                    continue
 
-            # Filter by date range and tags
-            filtered_results = []
-            
-            for item in result["output"]:
-                try:
-                    modified_at = item["metadata"].get("modified_at")
-                    logger.debug(f"Checking document modified at: {modified_at}")
-                    
-                    if not modified_at:
-                        logger.debug("Document has no modified_at date, skipping")
-                        continue
-                        
-                    modified_date = datetime.fromisoformat(modified_at)
-                    
-                    # Check if document is within date range
-                    is_after_start = not request.start_date or modified_date >= request.start_date
-                    is_before_end = not request.end_date or modified_date <= request.end_date
-                    
-                    logger.info(f"Date comparison for document:")
-                    logger.info(f"  Document date: {modified_date}")
-                    logger.info(f"  Start date: {request.start_date}")
-                    logger.info(f"  End date: {request.end_date}")
-                    logger.info(f"  After start?: {is_after_start}")
-                    logger.info(f"  Before end?: {is_before_end}")
-                    
-                    if not (is_after_start and is_before_end):
-                        logger.info("Document outside date range, skipping")
-                        continue
-                    
-                    # Check tags if specified
-                    if request.tags:
-                        doc_tags = set(item["metadata"].get("tags", []))
-                        logger.info(f"Document tags: {doc_tags}")
-                        logger.info(f"Required tags: {request.tags}")
-                        
-                        def normalize_tag(tag):
-                            # Strip '#' and whitespace, convert to lowercase
-                            return tag.strip('#').strip().lower()
-                        
-                        def tag_matches(doc_tag, request_tag):
-                            # Normalize both tags
-                            doc_tag = normalize_tag(doc_tag)
-                            request_tag = normalize_tag(request_tag)
-                            
-                            logger.info(f"Comparing normalized tags - doc: {doc_tag}, request: {request_tag}")
-                            
-                            # Split hierarchical tags
-                            doc_parts = doc_tag.split('/')
-                            request_parts = request_tag.split('/')
-                            
-                            logger.info(f"Split parts - doc: {doc_parts}, request: {request_parts}")
-                            
-                            # Check if the request tag is a prefix of the document tag
-                            # This allows matching parent tags to child tags
-                            if len(request_parts) <= len(doc_parts):
-                                matches = [rp == dp for rp, dp in zip(request_parts, doc_parts)]
-                                logger.info(f"Part matches: {matches}")
-                                result = all(matches)
-                                logger.info(f"Final match result: {result}")
-                                return result
-                            logger.info("Request tag longer than doc tag, no match")
-                            return False
-                        
-                        # Check if any request tag matches any document tag
-                        if not any(
-                            any(tag_matches(doc_tag, req_tag) 
-                                for doc_tag in doc_tags)
-                            for req_tag in request.tags
-                        ):
-                            logger.info("Document tags don't match required tags, skipping")
+                # Process metadata
+                metadata = item["metadata"]
+                modified_at = metadata.get("modified_at")
+                if modified_at:
+                    try:
+                        modified_date = datetime.fromisoformat(modified_at)
+                        # Apply date filtering if specified
+                        if request.start_date and modified_date < request.start_date:
                             continue
-                        else:
-                            logger.info(f"Document tags match requirements")
+                        if request.end_date and modified_date > request.end_date:
+                            continue
+                    except ValueError:
+                        logger.warning(f"Invalid date format in metadata: {modified_at}")
+                        continue
+
+                # Process tags
+                tags = set(metadata.get("tags", []))
+                if request.tags:
+                    # Check if any requested tag matches
+                    if not any(tag in tags for tag in request.tags):
+                        continue
+
+                processed_results.append({
+                    "content": item["content"],
+                    "metadata": {
+                        "file_path": metadata.get("file_path", "Unknown"),
+                        "modified_at": modified_at,
+                        "tags": list(tags),
+                        "relevance_score": metadata.get("relevance_score", 0.0)
+                    }
+                })
+
+            except Exception as e:
+                logger.error(f"Error processing result: {e}")
+                continue
+
+        if not processed_results:
+            return {
+                "analysis": "No documents matched your filtering criteria.",
+                "metadata": {
+                    "total_documents": 0,
+                    "date_range": f"{request.start_date} to {request.end_date}" if request.start_date and request.end_date else "all time",
+                    "tags": request.tags if request.tags else "no tag filter",
+                    "query": request.query,
+                    "mode": request.mode
+                }
+            }
+            
+        # Generate analysis based on mode
+        analysis = ""
+        try:
+            if request.mode == SearchMode.SUMMARY:
+                # Sort by relevance score
+                sorted_results = sorted(processed_results, 
+                    key=lambda x: x["metadata"]["relevance_score"], 
+                    reverse=True)
+                
+                analysis = "Summary of key documents:\n\n"
+                for i, doc in enumerate(sorted_results[:5], 1):
+                    content_preview = doc["content"][:200] + "..." if len(doc["content"]) > 200 else doc["content"]
+                    analysis += f"{i}. {content_preview}\n"
+                    if doc["metadata"].get("tags"):
+                        analysis += f"   Tags: {', '.join(doc['metadata']['tags'])}\n"
+                    analysis += "\n"
                     
-                    # If we get here, all filters passed
-                    filtered_results.append(item)
-                    logger.info("Document passed all filters, adding to results")
-                        
-                except Exception as e:
-                    logger.error(f"Error processing document: {str(e)}")
+            elif request.mode == SearchMode.TIMELINE:
+                # Sort by date
+                sorted_results = sorted(
+                    [r for r in processed_results if r["metadata"].get("modified_at")],
+                    key=lambda x: x["metadata"]["modified_at"]
+                )
+                
+                analysis = "Document timeline:\n\n"
+                for doc in sorted_results:
+                    date = doc["metadata"]["modified_at"].split("T")[0]  # Just the date part
+                    content_preview = doc["content"][:100] + "..." if len(doc["content"]) > 100 else doc["content"]
+                    analysis += f"{date}: {content_preview}\n\n"
+                    
+            elif request.mode == SearchMode.TOPICS:
+                # Group by tags
+                topics = {}
+                for doc in processed_results:
+                    for tag in doc["metadata"].get("tags", []):
+                        if tag not in topics:
+                            topics[tag] = []
+                        topics[tag].append(doc)
+                
+                analysis = "Topic analysis:\n\n"
+                for tag, docs in sorted(topics.items()):
+                    analysis += f"Topic: {tag}\n"
+                    analysis += f"Documents: {len(docs)}\n"
+                    # Show preview of most relevant document for each topic
+                    if docs:
+                        most_relevant = max(docs, key=lambda x: x["metadata"]["relevance_score"])
+                        preview = most_relevant["content"][:100] + "..."
+                        analysis += f"Sample: {preview}\n"
+                    analysis += "\n"
+                    
+            elif request.mode == SearchMode.TRENDS:
+                # Analyze document frequency over time
+                time_bins = {}
+                for doc in processed_results:
+                    if doc["metadata"].get("modified_at"):
+                        month = doc["metadata"].get("modified_at")[:7]  # YYYY-MM
+                        time_bins[month] = time_bins.get(month, 0) + 1
+                
+                analysis = "Trend analysis:\n\n"
+                for month in sorted(time_bins.keys()):
+                    count = time_bins[month]
+                    bar = "#" * min(count, 20)  # Visual bar capped at 20 chars
+                    analysis += f"{month}: {bar} ({count} documents)\n"
+                    
+        except Exception as e:
+            logger.error(f"Error generating analysis: {e}")
+            analysis = f"Error generating {request.mode} analysis: {str(e)}"
+
+        # Prepare final response
+        response = {
+            "analysis": analysis,
+            "metadata": {
+                "total_documents": len(processed_results),
+                "date_range": f"{request.start_date} to {request.end_date}" if request.start_date and request.end_date else "all time",
+                "tags": request.tags if request.tags else "no tag filter",
+                "query": request.query,
+                "mode": request.mode
+            }
+        }
+
+        if request.include_raw:
+            response["raw_results"] = processed_results[:20]  # Limit raw results
+            
+        return response
+
+    except Exception as e:
+        logger.exception("Deep search failed")
+        return {
+            "error": str(e),
+            "metadata": {
+                "query": request.query,
+                "mode": request.mode,
+                "error_details": str(e)
+            }
+        }
+
+        # Filter by date range and tags
+        filtered_results = []
+        
+        for item in result["output"]:
+            try:
+                modified_at = item["metadata"].get("modified_at")
+                logger.debug(f"Checking document modified at: {modified_at}")
+                
+                if not modified_at:
+                    logger.debug("Document has no modified_at date, skipping")
                     continue
                     
+                modified_date = datetime.fromisoformat(modified_at)
+                
+                # Check if document is within date range
+                is_after_start = not request.start_date or modified_date >= request.start_date
+                is_before_end = not request.end_date or modified_date <= request.end_date
+                
+                logger.info(f"Date comparison for document:")
+                logger.info(f"  Document date: {modified_date}")
+                logger.info(f"  Start date: {request.start_date}")
+                logger.info(f"  End date: {request.end_date}")
+                logger.info(f"  After start?: {is_after_start}")
+                logger.info(f"  Before end?: {is_before_end}")
+                
+                if not (is_after_start and is_before_end):
+                    logger.info("Document outside date range, skipping")
+                    continue
+                
+                # Check tags if specified
+                if request.tags:
+                    doc_tags = set(item["metadata"].get("tags", []))
+                    logger.info(f"Document tags: {doc_tags}")
+                    logger.info(f"Required tags: {request.tags}")
+                    
+                    def normalize_tag(tag):
+                        # Strip '#' and whitespace, convert to lowercase
+                        return tag.strip('#').strip().lower()
+                    
+                    def tag_matches(doc_tag, request_tag):
+                        # Normalize both tags
+                        doc_tag = normalize_tag(doc_tag)
+                        request_tag = normalize_tag(request_tag)
+                        
+                        logger.info(f"Comparing normalized tags - doc: {doc_tag}, request: {request_tag}")
+                        
+                        # Split hierarchical tags
+                        doc_parts = doc_tag.split('/')
+                        request_parts = request_tag.split('/')
+                        
+                        logger.info(f"Split parts - doc: {doc_parts}, request: {request_parts}")
+                        
+                        # Check if the request tag is a prefix of the document tag
+                        # This allows matching parent tags to child tags
+                        if len(request_parts) <= len(doc_parts):
+                            matches = [rp == dp for rp, dp in zip(request_parts, doc_parts)]
+                            logger.info(f"Part matches: {matches}")
+                            result = all(matches)
+                            logger.info(f"Final match result: {result}")
+                            return result
+                        logger.info("Request tag longer than doc tag, no match")
+                        return False
+                    
+                    # Check if any request tag matches any document tag
+                    if not any(
+                        any(tag_matches(doc_tag, req_tag) 
+                            for doc_tag in doc_tags)
+                        for req_tag in request.tags
+                    ):
+                        logger.info("Document tags don't match required tags, skipping")
+                        continue
+                    else:
+                        logger.info(f"Document tags match requirements")
+                
+                # If we get here, all filters passed
+                filtered_results.append(item)
+                logger.info("Document passed all filters, adding to results")
+                    
+            except Exception as e:
+                logger.error(f"Error processing document: {str(e)}")
+                continue
+                
             logger.info(f"Found {len(filtered_results)} documents after filtering")
             result["output"] = filtered_results
 
@@ -196,7 +411,7 @@ async def deep_search(request: DeepSearchQuery):
                 for item in result["output"][:5]:  # Limit to top 5 for summary
                     content_preview = item["content"][:200] + "..." if len(item["content"]) > 200 else item["content"]
                     analysis += f"- {content_preview}\n\n"
-                    
+                
             elif request.mode == "timeline":
                 sorted_docs = sorted(
                     result["output"], 
@@ -207,7 +422,7 @@ async def deep_search(request: DeepSearchQuery):
                     modified_at = item["metadata"].get("modified_at", "Unknown date")
                     content_preview = item["content"][:100] + "..." if len(item["content"]) > 100 else item["content"]
                     analysis += f"{modified_at}: {content_preview}\n\n"
-                    
+                
             elif request.mode == "topics":
                 topics = {}
                 for item in result["output"]:
@@ -215,12 +430,12 @@ async def deep_search(request: DeepSearchQuery):
                         if tag not in topics:
                             topics[tag] = []
                         topics[tag].append(item["content"])
-                
+            
                 analysis = "Topics found in documents:\n\n"
                 for topic, contents in topics.items():
                     analysis += f"Topic: {topic}\n"
                     analysis += f"Number of documents: {len(contents)}\n\n"
-                    
+                
             elif request.mode == "trends":
                 time_periods = {}
                 for item in result["output"]:
@@ -230,7 +445,7 @@ async def deep_search(request: DeepSearchQuery):
                         if period not in time_periods:
                             time_periods[period] = 0
                         time_periods[period] += 1
-                
+            
                 analysis = "Trend analysis:\n\n"
                 for period, count in sorted(time_periods.items()):
                     analysis += f"{period}: {count} documents\n"

@@ -18,11 +18,12 @@ npx -y @modelcontextprotocol/inspector uv --directory c:/Users/Alex/Documents/Pr
 This basically just parses frontmatter, tags and dataview (?). Capturing links in notes might have to be a parsing regex. Update: decided not to do this
 
 ## Next thing to try
-this is the working branch. TODO
-- ensure duplicates are prevented
-- revisit chunking strategy
-- set up sample vault to test on properly (lots of samples, tests)
-- refactor mcp-server properly
+- finish deep search implementation. Currently:
+  - tagging is still fucked
+  - claude doesn't crash though
+  - want to expand context and drop the "query" requirement. Just show all notes from a date range.  
+  - figure out timeline, topics and trends (doesn't work) analysis modes.
+  - summary doesn't work: Error generating topics analysis: name 'SearchMode' is not defined
 - add other loaders - png, docs, txt, pdfs, etc
 
 - [x] implement ObsidianLoader, add tags and created/updated dates to qdrant payload
@@ -32,6 +33,7 @@ this is the working branch. TODO
 - [x] hmm not pointing to vault, even though local files variable is set
 - [x] fix duplicate entries (cleanup.py) (better to just nuke the vector database)
 - [x] establish method of preventing duplicates (UUIDs)
+- [x] added "deep search" tool, which allows claude to run queries like "summary" 
 - [ ] how does the reranker work in the minima indexer > qdrant vector store > mcp query workflow? Answer: i think it was showign deduplicated results and returning only one of dozens of duplicates
 - [ ] consider adding a progress bar to indexing
 - [x] the tool just returns one search result. how can we improve that?
