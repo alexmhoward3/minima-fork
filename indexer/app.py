@@ -315,7 +315,7 @@ async def deep_search(request: DeepSearchQuery):
         }
 
         if request.include_raw:
-            response["raw_results"] = processed_results[:20]  # Limit raw results
+            response["raw_results"] = processed_results  # Return all results
             
         return response
 

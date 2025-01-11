@@ -274,7 +274,7 @@ class Indexer:
                 query,
                 search_type="similarity_score_threshold",
                 score_threshold=0.5,  # Adjust this threshold as needed
-                k=20  # Get more results initially for better filtering
+                k=100  # Get more results initially for better filtering
             )
             
             # Log the exact structure from Qdrant
