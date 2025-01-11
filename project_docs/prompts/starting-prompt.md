@@ -47,5 +47,10 @@ C:\Users\Alex\Documents\Projects\minima-fork\docker-compose-mcp.yml
 </files>
 
 <task>
-I want to improve the search results in the 'query' tool in the MCP server. Currently it only returns one result, but i would like to return more ranked in order of relevance. Please review the necessary files, then outline the steps to implement this.
+I want to improve the search results in the 'query' tool in the MCP server. Currently it returns several results, but they're all truncated due to the way we're using split(". ") which means we're treating each sentence as a separate result. Please review the necessary files, then outline the steps to implement this.
+
+Note that we have tried: 
+- Previously, the code was splitting each search result into individual sentences using content_parts = result["content"].split(". ") and treating each sentence as a separate result. This was causing the context fragmentation you noticed.
+The new code keeps each search result as a complete block, preserving the full context. Instead of splitting and looping through sentences, it now formats each result as a single unit with its metadata and relevance score. 
+  - result: list indices must be integers or slices, not str
 </task>

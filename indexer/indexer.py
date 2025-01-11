@@ -338,7 +338,7 @@ class Indexer:
 
             output = {
                 "links": links,
-                "output": ". ".join([r["content"] for r in unique_results]),
+                "output": unique_results,  # Pass the full results array
                 "metadata": [r["metadata"] for r in unique_results],
                 "relevance_scores": [r["metadata"]["relevance_score"] for r in unique_results]
             }

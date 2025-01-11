@@ -90,15 +90,17 @@ async def call_tool(name, arguments: dict) -> list[TextContent]:
     if not output.get("results"):
         return [TextContent(type="text", text="No results found.")]
     
-    # Format multiple results with relevance scores
+    # Format results while preserving full context
     formatted_results = []
     for result in output["results"]:
-        content_parts = result["content"].split(". ")
-        metadata_list = result["metadata"]
-        scores = result["relevance_scores"]
-        
-        for i, (content, metadata, score) in enumerate(zip(content_parts, metadata_list, scores)):
-            result_text = [f"\nResult {i+1} (Relevance: {score:.2f}):", content]
+        for i, item in enumerate(result["output"]):
+            score = result["relevance_scores"][i]
+            metadata = result["metadata"][i]
+            
+            result_text = [
+                f"\nResult {i+1} (Relevance: {score:.2f}):",
+                item["content"]  # Use full content without splitting
+            ]
             
             if metadata.get("tags"):
                 result_text.append(f"Tags: {', '.join(metadata['tags'])}")
@@ -143,15 +145,17 @@ async def get_prompt(name: str, arguments: dict | None) -> GetPromptResult:
             ]
         )
     
-    # Format multiple results with relevance scores
+    # Format results while preserving full context
     formatted_results = []
     for result in output["results"]:
-        content_parts = result["content"].split(". ")
-        metadata_list = result["metadata"]
-        scores = result["relevance_scores"]
-        
-        for i, (content, metadata, score) in enumerate(zip(content_parts, metadata_list, scores)):
-            result_text = [f"\nResult {i+1} (Relevance: {score:.2f}):", content]
+        for i, item in enumerate(result["output"]):
+            score = result["relevance_scores"][i]
+            metadata = result["metadata"][i]
+            
+            result_text = [
+                f"\nResult {i+1} (Relevance: {score:.2f}):",
+                item["content"]  # Use full content without splitting
+            ]
             
             if metadata.get("tags"):
                 result_text.append(f"Tags: {', '.join(metadata['tags'])}")

@@ -29,7 +29,7 @@ async def request_data(query):
             results = []
             if "output" in data:
                 results.append({
-                    "content": data["output"],
+                    "output": data["output"],  # Now contains the full array of results
                     "links": list(data["links"]) if "links" in data else [],
                     "metadata": data.get("metadata", []),
                     "relevance_scores": data.get("relevance_scores", [])
