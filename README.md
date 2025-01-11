@@ -80,8 +80,8 @@ The Deep Search tool provides advanced search capabilities with temporal filteri
     "query": "your search query",          # Required - The search text
     "mode": "summary",                     # Optional - Analysis mode (default: "summary")
     "time_frame": "this_week",            # Optional - Predefined time period
-    "start_date": "2024-01-01T00:00:00",  # Optional - Custom start date
-    "end_date": "2024-01-10T00:00:00",    # Optional - Custom end date
+    "start_date": "2025-01-01T00:00:00",  # Optional - Custom start date
+    "end_date": "2025-01-10T00:00:00",    # Optional - Custom end date
     "include_raw": false,                  # Optional - Include raw documents (default: false)
     "tags": ["meeting", "project"]         # Optional - Filter by tags
 }

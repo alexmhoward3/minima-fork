@@ -218,10 +218,13 @@ async def call_tool(name, arguments: dict) -> list[TextContent]:
             args = DeepSearchQuery(**arguments)
             logging.info(f"Deep search args: {args.dict()}")
         except ValueError as e:
-            logging.error(f"Validation error: {str(e)}")
+            error_msg = str(e)
+            if "mode" in error_msg:
+                error_msg = "Mode must be one of: summary, timeline, topics, or trends"
+            logging.error(f"Validation error: {error_msg}")
             return [TextContent(
                 type="text", 
-                text=f"Invalid search parameters: {str(e)}"
+                text=f"Invalid search parameters: {error_msg}"
             )]
             
         try:
