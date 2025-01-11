@@ -25,15 +25,10 @@ curl -X POST http://localhost:8001/cleanup-ignored
 This basically just parses frontmatter, tags and dataview (?). Capturing links in notes might have to be a parsing regex. Update: decided not to do this
 
 ## Next thing to try
-- finish deep search implementation. Currently:
-  - DONE want to expand context and drop the "query" requirement. Just show all notes from a date range.  
-  - DONE: expand on timeline, topics and trends analysis modes. Trends is neat.
-  - FIXED: Summary is redundant in the Summary tool results
-    - not sure how to use document_topics
-  - DONE add source/filepath to results
-  - DONE need to fix raw results = true requirement, i think?
-  - play around with this
+- start with the file sync doc next
+  - play around with deep search tools
 - add other loaders - png, docs, txt, pdfs, etc
+  - Images: https://python.langchain.com/docs/integrations/document_loaders/image/
 
 - [x] implement ObsidianLoader, add tags and created/updated dates to qdrant payload
 - [x] consider whether backlinks are necessary metadata, since they're already present in the note
