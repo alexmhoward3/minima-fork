@@ -48,7 +48,7 @@ async def request_data(query):
             return { "error": str(e) }
 
 async def request_deep_search(query):
-    logger.info(f"LOCAL_FILES_PATH from env: {os.environ.get('LOCAL_FILES_PATH')}")
+    logger.debug(f"LOCAL_FILES_PATH from env: {os.environ.get('LOCAL_FILES_PATH')}")
 
     """
     Handle deep search requests with advanced filtering and analysis capabilities.
@@ -101,7 +101,7 @@ async def request_deep_search(query):
             payload["tags"] = [str(tag).strip() for tag in query.tags if tag]  # Sanitize and filter empty tags
 
         # Log the final payload for debugging
-        logger.info(f"Final deep search payload: {payload}")
+        logger.debug(f"Final deep search payload: {payload}")
 
         async with httpx.AsyncClient() as client:
             try:
@@ -113,7 +113,7 @@ async def request_deep_search(query):
                 )
                 response.raise_for_status()
                 data = response.json()
-                logger.info(f"Deep search response status: {response.status_code}")
+                logger.debug(f"Deep search response status: {response.status_code}")
                 logger.debug(f"Deep search response data: {data}")
                 
                 # Validate response structure
@@ -129,10 +129,10 @@ async def request_deep_search(query):
                 
                 if query.include_raw:
                     processed_data["raw_results"] = []
-                    logger.info(f"Raw results from deep search: {data.get('raw_results', [])}")
+                    logger.debug(f"Raw results from deep search: {data.get('raw_results', [])}")
                     for result in data.get("raw_results", []):
-                        logger.info(f"Processing result: {result}")
-                        logger.info(f"Result metadata: {result.get('metadata', {})}")
+                        logger.debug(f"Processing result: {result}")
+                        logger.debug(f"Result metadata: {result.get('metadata', {})}")
 
                         # Get the file path from either direct metadata or nested metadata
                         metadata = result.get('metadata', {})
@@ -145,7 +145,7 @@ async def request_deep_search(query):
                                 metadata = {}
                         
                         file_path = metadata.get('file_path', result.get('file_path', 'Unknown'))
-                        logger.info(f"Initial file_path: {file_path}")
+                        logger.debug(f"Initial file_path: {file_path}")
                         
                         # Get environment variable with a default value
                         local_files_path = os.environ.get('LOCAL_FILES_PATH', '')
@@ -160,7 +160,7 @@ async def request_deep_search(query):
                             # Ensure proper path joining
                             file_path = os.path.normpath(os.path.join(local_files_path, file_path.lstrip('/')))
                         
-                        logger.info(f"Final file_path: {file_path}")
+                        logger.debug(f"Final file_path: {file_path}")
                         
                         processed_result = {
                             "source": file_path,

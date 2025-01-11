@@ -61,5 +61,5 @@ a) Get documents within that date range
 b) Format them appropriately
 c) Return them to me for summarization
 
-I have the tool set up and created, and i can get responses via the MCP inspector and curl commands. but I want to fix "source" field. Right now, the deep_query tool returns a "Unknown". It should be something like: "C:\Users\Alex\OneDrive\Apps\remotely-save\Obsidian Vault\idea for social media in 2025.md"
+I have the tool set up and created. I want to brainstorm other tools i might be able to implement using this framework. don't make any code changes
 </task>
