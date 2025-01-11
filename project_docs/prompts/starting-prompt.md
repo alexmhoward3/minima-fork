@@ -47,7 +47,26 @@ C:\Users\Alex\Documents\Projects\minima-fork\docker-compose-mcp.yml
 </files>
 
 <task>
-I've implemented a Deep Search tool in the MCP server.py, but I want to refactor the tools there into separate tools. I've written up an implementation plan C:\Users\Alex\Documents\Projects\minima-fork\project_docs\clarifying-tools.md. I want you to review that and give feedback. 
+I've implemented a Deep Search tool in the MCP server.py, but I want to refactor the tools there into separate tools. I've written up an implementation plan C:\Users\Alex\Documents\Projects\minima-fork\project_docs\clarifying-tools.md. I'm in the process of phase 1, but i'm having trouble with some errors: 
+
+Traceback (most recent call last): File "C:\Users\Alex\Documents\Projects\minima-fork\mcp-server\.venv\Lib\site-packages\mcp\server\stdio.py", line 83, in stdio_server
+yield read_stream, write_stream File "C:\Users\Alex\Documents\Projects\minima-fork\mcp-server\src\minima\server.py", line 218, in main
+InitializationOptions( ^^^^^^^^^^^^^^^^^^^^^ NameError: name 'InitializationOptions' is not defined. Did you mean: 'NotificationOptions'? During handling of the above exception, another exception occurred: + Exception Group Traceback (most recent call last): | File "<frozen runpy>", line 198, in _run_module_as_main | File "<frozen runpy>", line 88, in _run_code | File "C:\Users\Alex\Documents\Projects\minima-fork\mcp-server\.venv\Scripts\minima.exe\__main__.py", line 8, in <module>
+| File "C:\Users\Alex\Documents\Projects\minima-fork\mcp-server\src\minima\__init__.py", line 11, in main
+| asyncio.run(server.main()) | File "C:\Users\Alex\AppData\Local\Programs\Python\Python312\Lib\asyncio\runners.py", line 194, in run
+| return runner.run(main)
+| ^^^^^^^^^^^^^^^^ | File "C:\Users\Alex\AppData\Local\Programs\Python\Python312\Lib\asyncio\runners.py", line 118, in run
+| return self._loop.run_until_complete(task) | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ | File "C:\Users\Alex\AppData\Local\Programs\Python\Python312\Lib\asyncio\base_events.py", line 687, in run_until_complete
+| return future.result()
+| ^^^^^^^^^^^^^^^ | File "C:\Users\Alex\Documents\Projects\minima-fork\mcp-server\src\minima\server.py", line 214, in main
+| async with mcp.server.stdio.stdio_server() as (read_stream, write_stream): | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ | File "C:\Users\Alex\AppData\Local\Programs\Python\Python312\Lib\contextlib.py", line 231, in __aexit__ | await self.gen.athrow(value) | File "C:\Users\Alex\Documents\Projects\minima-fork\mcp-server\.venv\Lib\site-packages\mcp\server\stdio.py", line 80, in stdio_server
+| async with anyio.create_task_group() as tg:
+| ^^^^^^^^^^^^^^^^^^^^^^^^^ | File "C:\Users\Alex\Documents\Projects\minima-fork\mcp-server\.venv\Lib\site-packages\anyio\_backends\_asyncio.py", line 763, in __aexit__
+| raise BaseExceptionGroup( | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception) +-+---------------- 1 ---------------- | Traceback (most recent call last): | File "C:\Users\Alex\Documents\Projects\minima-fork\mcp-server\.venv\Lib\site-packages\mcp\server\stdio.py", line 83, in stdio_server
+| yield read_stream, write_stream
+| File "C:\Users\Alex\Documents\Projects\minima-fork\mcp-server\src\minima\server.py", line 218, in main | InitializationOptions( | ^^^^^^^^^^^^^^^^^^^^^
+| NameError: name 'InitializationOptions' is not defined. Did you mean: 'NotificationOptions'? +------------------------------------
+
 
 The aim is to refactor the tools and make the tools clear for LLM use. They should keep operations focused and atomic. 
 

@@ -1,6 +1,9 @@
 command to get it started: 
     docker compose -f docker-compose-mcp.yml down; docker compose -f docker-compose-mcp.yml up --build -d
 
+    without removing volumes (ideal) 
+    docker compose -f docker-compose-mcp.yml down --volumes=false; docker compose -f docker-compose-mcp.yml up --build -d
+
 obsidian-loader-test.py start:
 set QDRANT_HOST=localhost; set QDRANT_PORT=6333; set START_INDEXING=true; set CONTAINER_PATH=C:\Users\Alex\Documents\Projects\sample_vault; set LOCAL_FILES_PATH=C:\Users\Alex\Documents\Projects\sample_vault; set EMBEDDING_MODEL_ID=sentence-transformers/all-mpnet-base-v2; set EMBEDDING_SIZE=768; python tests/obsidian-loader-test.py
 

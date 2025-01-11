@@ -1,15 +1,10 @@
 import logging
 import mcp.server.stdio
 from typing import Annotated, Optional, List
-from enum import Enum
-from datetime import datetime
-from mcp.server import Server
-from .requestor import request_data, request_deep_search
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field
 from mcp.server.stdio import stdio_server
 from mcp.shared.exceptions import McpError
-from mcp.server import NotificationOptions, Server
-from mcp.server.models import InitializationOptions
+from mcp.server import NotificationOptions, Server, InitializationOptions
 from mcp.types import (
     GetPromptResult,
     Prompt,
@@ -20,6 +15,10 @@ from mcp.types import (
     INVALID_PARAMS,
     INTERNAL_ERROR,
 )
+
+from .models import SearchMode, BaseDocumentQuery
+from .requestor import request_data, request_deep_search
+from .tools.document_summary import get_tool as get_document_summary_tool, handle_request as handle_document_summary_request
 
 logging.basicConfig(
     level=logging.DEBUG, 
@@ -38,51 +37,16 @@ class Query(BaseModel):
         Field(description="context to find")
     ]
 
-class SearchMode(str, Enum):
-    SUMMARY = "summary"
-    TIMELINE = "timeline"
-    TOPICS = "topics"
-    TRENDS = "trends"
-
-
-
-class DeepSearchQuery(BaseModel):
-    query: Optional[str] = Field(description="Search query", default=None)
+class DeepSearchQuery(BaseDocumentQuery):
     mode: SearchMode = Field(
-        description="Type of analysis to perform",
-        default=SearchMode.SUMMARY
+        default=SearchMode.SUMMARY,
+        description="Type of analysis to perform"
     )
-
-    start_date: Optional[datetime] = Field(
-        description="Custom start date for search",
-        default=None
-    )
-    end_date: Optional[datetime] = Field(
-        description="Custom end date for search",
-        default=None
-    )
-    include_raw: bool = Field(
-        description="Include raw matching documents in addition to analysis",
-        default=False
-    )
-    tags: Optional[List[str]] = Field(
-        description="Filter by specific tags",
-        default=None
-    )
-
-    @validator('tags', pre=True)
-    def validate_tags(cls, v):
-        if v is None:
-            return None
-        if isinstance(v, str):
-            return [v]  # Convert single string to list
-        if isinstance(v, list):
-            return v
-        raise ValueError('tags must be a string or list of strings')
 
 @server.list_tools()
 async def list_tools() -> list[Tool]:
     return [
+        get_document_summary_tool(),
         Tool(
             name="query",
             description="Find a context in local files (PDF, CSV, DOCX, MD, TXT)",
@@ -104,44 +68,7 @@ async def list_tools() -> list[Tool]:
             - Analyze trends in discussions about Z
             - Get topics from documents tagged with 'research'
             """,
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "Search query (optional)"
-                    },
-                    "mode": {
-                        "type": "string",
-                        "enum": ["summary", "timeline", "topics", "trends"],
-                        "description": "Analysis mode",
-                        "default": "summary"
-                    },
-                    "start_date": {
-                        "type": "string",
-                        "format": "date-time",
-                        "description": "Start date for filtering (optional)"
-                    },
-                    "end_date": {
-                        "type": "string", 
-                        "format": "date-time",
-                        "description": "End date for filtering (optional)"
-                    },
-                    "include_raw": {
-                        "type": "boolean",
-                        "description": "Include raw document contents",
-                        "default": False
-                    },
-                    "tags": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        },
-                        "description": "Filter by tags (optional)"
-                    }
-                },
-                "required": []
-            }
+            inputSchema=DeepSearchQuery.model_json_schema()
         )
     ]
     
@@ -162,7 +89,9 @@ async def list_prompts() -> list[Prompt]:
     
 @server.call_tool()
 async def call_tool(name, arguments: dict) -> list[TextContent]:
-    if name == "query":
+    if name == "document_summary":
+        return await handle_document_summary_request(arguments)
+    elif name == "query":
         try:
             args = Query(**arguments)
         except ValueError as e:
@@ -248,7 +177,6 @@ async def call_tool(name, arguments: dict) -> list[TextContent]:
                 formatted_response.append("\nRaw Results:")
                 for i, result in enumerate(output["raw_results"], 1):
                     formatted_response.append(f"\nDocument {i}:")
-                    # Safely access nested fields
                     formatted_response.append(f"Source: {result.get('source', 'Unknown')}")
                     formatted_response.append(result.get('content', 'No content'))
                     
@@ -281,75 +209,6 @@ async def call_tool(name, arguments: dict) -> list[TextContent]:
     else:
         logging.error(f"Unknown tool: {name}")
         raise ValueError(f"Unknown tool: {name}")
-    
-@server.get_prompt()
-async def get_prompt(name: str, arguments: dict | None) -> GetPromptResult:
-    if not arguments or "context" not in arguments:
-        logging.error("Context is required")
-        raise McpError(INVALID_PARAMS, "Context is required")
-        
-    context = arguments["text"]
-
-    output = await request_data(context)
-    if "error" in output:
-        error = output["error"]
-        logging.error(error)
-        return GetPromptResult(
-            description=f"Failed to find content for {context}",
-            messages=[
-                PromptMessage(
-                    role="user", 
-                    content=TextContent(type="text", text=error),
-                )
-            ]
-        )
-
-    logging.info(f"Get prompt: {output}")
-    if not output.get("results"):
-        return GetPromptResult(
-            description=f"No results found for {context}",
-            messages=[
-                PromptMessage(
-                    role="user",
-                    content=TextContent(type="text", text="No results found.")
-                )
-            ]
-        )
-    
-    # Format results while preserving full context
-    formatted_results = []
-    for result in output["results"]:
-        for i, item in enumerate(result["output"]):
-            score = result["relevance_scores"][i]
-            metadata = result["metadata"][i]
-            
-            # Transform the file path to be more readable
-            file_path = metadata.get('file_path', 'Unknown path')
-            if file_path.startswith('/usr/src/app/local_files/'):
-                file_path = file_path[len('/usr/src/app/local_files/'):]
-            
-            result_text = [
-                f"\nResult {i+1} (Relevance: {score:.2f}):",
-                f"Source: {file_path}",
-                item["content"]  # Use full content without splitting
-            ]
-            
-            if metadata.get("tags"):
-                result_text.append(f"Tags: {', '.join(metadata['tags'])}")
-            if metadata.get("modified_at"):
-                result_text.append(f"Last modified: {metadata['modified_at']}")
-            
-            formatted_results.append("\n".join(result_text))
-    
-    return GetPromptResult(
-        description=f"Found {len(formatted_results)} results for {context}",
-        messages=[
-            PromptMessage(
-                role="user",
-                content=TextContent(type="text", text="\n".join(formatted_results))
-            )
-        ]
-    )
 
 async def main():
     async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
