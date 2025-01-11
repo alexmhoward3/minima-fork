@@ -19,6 +19,7 @@ from mcp.types import (
 from .models import SearchMode, BaseDocumentQuery
 from .requestor import request_data, request_deep_search
 from .tools.document_summary import get_tool as get_document_summary_tool, handle_request as handle_document_summary_request
+from .tools.document_timeline import get_tool as get_document_timeline_tool, handle_request as handle_document_timeline_request
 
 logging.basicConfig(
     level=logging.DEBUG, 
@@ -47,6 +48,7 @@ class DeepSearchQuery(BaseDocumentQuery):
 async def list_tools() -> list[Tool]:
     return [
         get_document_summary_tool(),
+        get_document_timeline_tool(),
         Tool(
             name="query",
             description="Find a context in local files (PDF, CSV, DOCX, MD, TXT)",
@@ -89,7 +91,14 @@ async def list_prompts() -> list[Prompt]:
     
 @server.call_tool()
 async def call_tool(name, arguments: dict) -> list[TextContent]:
-    if name == "document_summary":
+    if name == "document_timeline":
+        # Ensure all required fields are present
+        if not isinstance(arguments, dict):
+            arguments = {}
+        if 'include_raw' not in arguments:
+            arguments['include_raw'] = True
+        return await handle_document_timeline_request(arguments)
+    elif name == "document_summary":
         return await handle_document_summary_request(arguments)
     elif name == "query":
         try:

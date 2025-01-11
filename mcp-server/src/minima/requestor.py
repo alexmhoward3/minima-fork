@@ -66,11 +66,12 @@ async def request_deep_search(query):
     """
     try:
         # Validate mode
-        valid_modes = ["summary", "timeline", "topics", "trends"]
-        mode = query.mode.value if hasattr(query.mode, 'value') else query.mode
-        if mode not in valid_modes:
+        from .models import SearchMode
+        mode = query.mode
+        if not isinstance(mode, SearchMode):
             logger.error(f"Invalid mode: {mode}")
-            return {"error": f"Invalid mode. Must be one of: {', '.join(valid_modes)}"}
+            return {"error": f"Invalid mode. Must be one of: {', '.join([m.value for m in SearchMode])}"}
+
 
         # Construct payload with explicit validation
         payload = {
