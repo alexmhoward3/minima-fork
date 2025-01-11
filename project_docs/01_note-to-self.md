@@ -19,9 +19,9 @@ This basically just parses frontmatter, tags and dataview (?). Capturing links i
 
 ## Next thing to try
 - finish deep search implementation. Currently:
-  - want to expand context and drop the "query" requirement. Just show all notes from a date range.  
+  - DONE want to expand context and drop the "query" requirement. Just show all notes from a date range.  
   - expand on timeline, topics and trends analysis modes. Trends is neat.
-  - add source/filepath to results
+  - DONE add source/filepath to results
 - add other loaders - png, docs, txt, pdfs, etc
 
 - [x] implement ObsidianLoader, add tags and created/updated dates to qdrant payload
