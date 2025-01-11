@@ -97,8 +97,14 @@ async def call_tool(name, arguments: dict) -> list[TextContent]:
             score = result["relevance_scores"][i]
             metadata = result["metadata"][i]
             
+            # Transform the file path to be more readable
+            file_path = metadata.get('file_path', 'Unknown path')
+            if file_path.startswith('/usr/src/app/local_files/'):
+                file_path = file_path[len('/usr/src/app/local_files/'):]
+            
             result_text = [
                 f"\nResult {i+1} (Relevance: {score:.2f}):",
+                f"Source: {file_path}",
                 item["content"]  # Use full content without splitting
             ]
             
@@ -152,8 +158,14 @@ async def get_prompt(name: str, arguments: dict | None) -> GetPromptResult:
             score = result["relevance_scores"][i]
             metadata = result["metadata"][i]
             
+            # Transform the file path to be more readable
+            file_path = metadata.get('file_path', 'Unknown path')
+            if file_path.startswith('/usr/src/app/local_files/'):
+                file_path = file_path[len('/usr/src/app/local_files/'):]
+            
             result_text = [
                 f"\nResult {i+1} (Relevance: {score:.2f}):",
+                f"Source: {file_path}",
                 item["content"]  # Use full content without splitting
             ]
             

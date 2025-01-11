@@ -324,6 +324,7 @@ class Indexer:
                 result = {
                     "content": item.page_content,
                     "metadata": {
+                        "file_path": path,  # Include the file path
                         "tags": metadata.get("tags", []),
                         "links": metadata.get("links", []),
                         "created_at": metadata.get("created_at"),
