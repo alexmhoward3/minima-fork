@@ -24,7 +24,21 @@ async def request_data(query):
             response.raise_for_status()
             data = response.json()
             logger.info(f"Received data: {data}")
-            return data
+            
+            # Format the results nicely
+            results = []
+            if "output" in data:
+                results.append({
+                    "content": data["output"],
+                    "links": list(data["links"]) if "links" in data else [],
+                    "metadata": data.get("metadata", []),
+                    "relevance_scores": data.get("relevance_scores", [])
+                })
+            
+            return {
+                "results": results,
+                "total_results": len(results[0]["metadata"]) if results else 0
+            }
 
         except Exception as e:
             logger.error(f"HTTP error: {e}")

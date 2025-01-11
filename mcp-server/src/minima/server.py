@@ -86,12 +86,28 @@ async def call_tool(name, arguments: dict) -> list[TextContent]:
         logging.error(output["error"])
         raise McpError(INTERNAL_ERROR, output["error"])
     
-    logging.info(f"Get prompt: {output}")    
-    output = output['result']['output']
-    #links = output['result']['links']
-    result = []
-    result.append(TextContent(type="text", text=output))
-    return result
+    logging.info(f"Get prompt: {output}")
+    if not output.get("results"):
+        return [TextContent(type="text", text="No results found.")]
+    
+    # Format multiple results with relevance scores
+    formatted_results = []
+    for result in output["results"]:
+        content_parts = result["content"].split(". ")
+        metadata_list = result["metadata"]
+        scores = result["relevance_scores"]
+        
+        for i, (content, metadata, score) in enumerate(zip(content_parts, metadata_list, scores)):
+            result_text = [f"\nResult {i+1} (Relevance: {score:.2f}):", content]
+            
+            if metadata.get("tags"):
+                result_text.append(f"Tags: {', '.join(metadata['tags'])}")
+            if metadata.get("modified_at"):
+                result_text.append(f"Last modified: {metadata['modified_at']}")
+            
+            formatted_results.append("\n".join(result_text))
+    
+    return [TextContent(type="text", text="\n".join(formatted_results))]
     
 @server.get_prompt()
 async def get_prompt(name: str, arguments: dict | None) -> GetPromptResult:
@@ -106,7 +122,7 @@ async def get_prompt(name: str, arguments: dict | None) -> GetPromptResult:
         error = output["error"]
         logging.error(error)
         return GetPromptResult(
-            description=f"Faild to find a {context}",
+            description=f"Failed to find content for {context}",
             messages=[
                 PromptMessage(
                     role="user", 
@@ -115,14 +131,41 @@ async def get_prompt(name: str, arguments: dict | None) -> GetPromptResult:
             ]
         )
 
-    logging.info(f"Get prompt: {output}")    
-    output = output['result']['output']
+    logging.info(f"Get prompt: {output}")
+    if not output.get("results"):
+        return GetPromptResult(
+            description=f"No results found for {context}",
+            messages=[
+                PromptMessage(
+                    role="user",
+                    content=TextContent(type="text", text="No results found.")
+                )
+            ]
+        )
+    
+    # Format multiple results with relevance scores
+    formatted_results = []
+    for result in output["results"]:
+        content_parts = result["content"].split(". ")
+        metadata_list = result["metadata"]
+        scores = result["relevance_scores"]
+        
+        for i, (content, metadata, score) in enumerate(zip(content_parts, metadata_list, scores)):
+            result_text = [f"\nResult {i+1} (Relevance: {score:.2f}):", content]
+            
+            if metadata.get("tags"):
+                result_text.append(f"Tags: {', '.join(metadata['tags'])}")
+            if metadata.get("modified_at"):
+                result_text.append(f"Last modified: {metadata['modified_at']}")
+            
+            formatted_results.append("\n".join(result_text))
+    
     return GetPromptResult(
-        description=f"Found content for this {context}",
+        description=f"Found {len(formatted_results)} results for {context}",
         messages=[
             PromptMessage(
-                role="user", 
-                content=TextContent(type="text", text=output)
+                role="user",
+                content=TextContent(type="text", text="\n".join(formatted_results))
             )
         ]
     )
