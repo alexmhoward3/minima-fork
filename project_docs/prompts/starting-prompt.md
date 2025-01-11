@@ -61,5 +61,7 @@ a) Get documents within that date range
 b) Format them appropriately
 c) Return them to me for summarization
 
-I have the tool set up and created. I want to brainstorm other tools i might be able to implement using this framework. don't make any code changes
+I have the tool set up and created. but the "Source" field in the documents that are returned isn't formatted correctly. i want to make sure it is a clean link: Source: C:\Users\Alex\OneDrive\Apps\remotely-save\Obsidian VaultWork\03-Resources\Meetings\2024-12-19 Alfred 1 to 1.md
+it should be:
+Source: C:\Users\Alex\OneDrive\Apps\remotely-save\Obsidian Vault\Work\03-Resources\Meetings\2024-12-19 Alfred 1 to 1.md
 </task>

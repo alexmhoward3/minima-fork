@@ -142,15 +142,8 @@ async def request_deep_search(query):
                         logger.debug(f"Processing result: {result}")
                         logger.debug(f"Result metadata: {result.get('metadata', {})}")
 
-                        # Get the file path from either direct metadata or nested metadata
+                        # Get metadata from result
                         metadata = result.get('metadata', {})
-                        if isinstance(metadata, str):
-                            # Handle case where metadata might be serialized
-                            try:
-                                import json
-                                metadata = json.loads(metadata)
-                            except:
-                                metadata = {}
                         
                         file_path = metadata.get('file_path', 'Unknown')
                         logger.debug(f"Initial file_path: {file_path}")
