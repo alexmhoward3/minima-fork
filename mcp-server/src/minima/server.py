@@ -21,6 +21,7 @@ from .requestor import request_data, request_deep_search
 from .tools.document_summary import get_tool as get_document_summary_tool, handle_request as handle_document_summary_request
 from .tools.document_timeline import get_tool as get_document_timeline_tool, handle_request as handle_document_timeline_request
 from .tools.document_topics import get_tool as get_document_topics_tool, handle_request as handle_document_topics_request
+from .tools.document_trends import get_tool as get_document_trends_tool, handle_request as handle_document_trends_request
 
 logging.basicConfig(
     level=logging.DEBUG, 
@@ -51,6 +52,7 @@ async def list_tools() -> list[Tool]:
         get_document_summary_tool(),
         get_document_timeline_tool(),
         get_document_topics_tool(),
+        get_document_trends_tool(),
         Tool(
             name="query",
             description="Find a context in local files (PDF, CSV, DOCX, MD, TXT)",
@@ -104,6 +106,8 @@ async def call_tool(name, arguments: dict) -> list[TextContent]:
         return await handle_document_summary_request(arguments)
     elif name == "document_topics":
         return await handle_document_topics_request(arguments)
+    elif name == "document_trends":
+        return await handle_document_trends_request(arguments)
     elif name == "query":
         try:
             args = Query(**arguments)

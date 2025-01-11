@@ -54,7 +54,6 @@ async def handle_request(arguments: dict) -> list[TextContent]:
         formatted_response.append(f"Total documents: {total_docs}")
         
         if output.get("analysis"):
-            formatted_response.append("\nSummary:")
             formatted_response.append(output["analysis"])
         
         if args.include_raw and output.get("raw_results"):
