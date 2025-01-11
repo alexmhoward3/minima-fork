@@ -246,7 +246,7 @@ async def call_tool(name, arguments: dict) -> list[TextContent]:
                 for i, result in enumerate(output["raw_results"], 1):
                     formatted_response.append(f"\nDocument {i}:")
                     # Safely access nested fields
-                    formatted_response.append(f"Source: {result.get('metadata', {}).get('file_path', 'Unknown')}")
+                    formatted_response.append(f"Source: {result.get('source', 'Unknown')}")
                     formatted_response.append(result.get('content', 'No content'))
                     
                     tags = result.get('metadata', {}).get('tags', [])

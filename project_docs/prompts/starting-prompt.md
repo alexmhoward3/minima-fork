@@ -61,6 +61,5 @@ a) Get documents within that date range
 b) Format them appropriately
 c) Return them to me for summarization
 
-I have the tool set up and created, and i can get responses via the MCP inspector and curl commands. but I want to explore a few changes: 
-- right now, the "query" field is required, but i want a method to answer the user query "summarize all my notes from this week". That would have no query, just time start and end dates. Start with making the query field optional and adding a method to the Indexer class to efficiently retrieve documents by date range without requiring semantic search. All the metadata is stored as payload fields in Qdrant, and i want a  date-range-only search to return all documents within the date range, sorted by date. I'll look into indexing by date at a later time.
+I have the tool set up and created, and i can get responses via the MCP inspector and curl commands. but I want to fix "source" field. Right now, the deep_query tool returns a "Unknown". It should be something like: "C:\Users\Alex\OneDrive\Apps\remotely-save\Obsidian Vault\idea for social media in 2025.md"
 </task>

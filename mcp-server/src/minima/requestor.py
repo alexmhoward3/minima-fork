@@ -1,3 +1,4 @@
+import os
 import httpx
 import logging
 from typing import Any, Dict
@@ -47,6 +48,8 @@ async def request_data(query):
             return { "error": str(e) }
 
 async def request_deep_search(query):
+    logger.info(f"LOCAL_FILES_PATH from env: {os.environ.get('LOCAL_FILES_PATH')}")
+
     """
     Handle deep search requests with advanced filtering and analysis capabilities.
     
@@ -126,12 +129,44 @@ async def request_deep_search(query):
                 
                 if query.include_raw:
                     processed_data["raw_results"] = []
+                    logger.info(f"Raw results from deep search: {data.get('raw_results', [])}")
                     for result in data.get("raw_results", []):
+                        logger.info(f"Processing result: {result}")
+                        logger.info(f"Result metadata: {result.get('metadata', {})}")
+
+                        # Get the file path from either direct metadata or nested metadata
+                        metadata = result.get('metadata', {})
+                        if isinstance(metadata, str):
+                            # Handle case where metadata might be serialized
+                            try:
+                                import json
+                                metadata = json.loads(metadata)
+                            except:
+                                metadata = {}
+                        
+                        file_path = metadata.get('file_path', result.get('file_path', 'Unknown'))
+                        logger.info(f"Initial file_path: {file_path}")
+                        
+                        # Get environment variable with a default value
+                        local_files_path = os.environ.get('LOCAL_FILES_PATH', '')
+                        if not local_files_path:
+                            # Fallback to hardcoded path if env var not available
+                            local_files_path = r"C:\Users\Alex\OneDrive\Apps\remotely-save\Obsidian Vault"
+                        
+                        # Process container path if present
+                        if file_path != 'Unknown':
+                            if file_path.startswith('/usr/src/app/local_files/'):
+                                file_path = file_path[len('/usr/src/app/local_files/'):]
+                            # Ensure proper path joining
+                            file_path = os.path.normpath(os.path.join(local_files_path, file_path.lstrip('/')))
+                        
+                        logger.info(f"Final file_path: {file_path}")
+                        
                         processed_result = {
-                            "source": result.get("source", "Unknown source"),
+                            "source": file_path,
                             "content": result.get("content", ""),
-                            "tags": result.get("tags", []),
-                            "modified_at": result.get("modified_at")
+                            "tags": metadata.get("tags", []),
+                            "modified_at": metadata.get("modified_at")
                         }
                         processed_data["raw_results"].append(processed_result)
                 
