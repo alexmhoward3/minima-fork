@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from async_loop import index_loop, crawl_loop
 from datetime import datetime, timedelta
 from typing import Optional, List, Literal
+from enum import Enum
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -18,6 +19,12 @@ START_INDEXING = os.environ.get('START_INDEXING', 'false').lower() == 'true'
 indexer = Indexer()
 async_queue = AsyncQueue()
 router = APIRouter()
+
+class SearchMode(str, Enum):
+    SUMMARY = "summary"
+    TIMELINE = "timeline"
+    TOPICS = "topics"
+    TRENDS = "trends"
 
 class Query(BaseModel):
     query: str

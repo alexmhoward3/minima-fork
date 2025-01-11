@@ -22,8 +22,8 @@ This basically just parses frontmatter, tags and dataview (?). Capturing links i
   - tagging is still fucked
   - claude doesn't crash though
   - want to expand context and drop the "query" requirement. Just show all notes from a date range.  
-  - figure out timeline, topics and trends (doesn't work) analysis modes.
-  - summary doesn't work: Error generating topics analysis: name 'SearchMode' is not defined
+  - expand on timeline, topics and trends analysis modes. Trends is neat.
+  - add source/filepath to results
 - add other loaders - png, docs, txt, pdfs, etc
 
 - [x] implement ObsidianLoader, add tags and created/updated dates to qdrant payload
