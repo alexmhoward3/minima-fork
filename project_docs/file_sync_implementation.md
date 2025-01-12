@@ -196,6 +196,110 @@ CHANGE_DETECTION_CONFIG = {
 5. Memory usage remains stable during extended operation
 6. All tests pass with >95% coverage
 
+## Code Impact Analysis
+
+### Affected Modules
+
+1. **indexer.py**
+   - Add methods for document removal and updates
+   - Enhance _process_file to handle updates
+   - Add document existence verification
+   - Modify _generate_content_uuid to handle file deletions
+   - Add batch operation support
+   - Changes to verify_document_uuid for file existence checks
+
+2. **app.py**
+   - Add new endpoints for file sync status
+   - Modify lifespan to include file watcher
+   - Add handlers for sync events
+   - Enhance error handling for sync operations
+   - Add status reporting endpoints
+
+3. **async_loop.py**
+   - Add file watcher loop
+   - Modify index_loop to handle updates/deletions
+   - Enhance message processing
+   - Add event prioritization
+
+4. **async_queue.py**
+   - Add support for event types
+   - Enhance queue processing for sync events
+   - Add priority queue capabilities
+   - Implement batch processing
+
+### New Modules Required
+
+1. **file_watcher.py**
+   ```python
+   class FileWatcher:
+       def __init__(self, config)
+       async def start(self)
+       async def stop(self)
+       def handle_event(self, event)
+   ```
+
+2. **change_detector.py**
+   ```python
+   class ChangeDetector:
+       def __init__(self, config)
+       def calculate_hash(self, file_path)
+       def detect_changes(self, file_path)
+       def update_cache(self, file_path)
+   ```
+
+3. **system_manager.py**
+   ```python
+   class SystemManager:
+       def __init__(self, config)
+       async def start_services(self)
+       async def check_consistency(self)
+       async def recover_state(self)
+   ```
+
+4. **sync_status.py**
+   ```python
+   class SyncStatus:
+       def __init__(self)
+       def update_status(self, file_path, status)
+       def get_pending_operations(self)
+       def get_sync_state(self)
+   ```
+
+### Configuration Changes
+
+1. **docker-compose-mcp.yml**
+   - Add file watcher configuration
+   - Update volume mounts for sync status
+   - Add new environment variables
+
+2. **.env**
+   Add new configuration options:
+   ```env
+   SYNC_ENABLED=true
+   SYNC_INTERVAL=5
+   WATCHER_DEBOUNCE=2.0
+   BATCH_SIZE=10
+   CONSISTENCY_CHECK_INTERVAL=3600
+   ```
+
+### Test Suite Impact
+
+1. **test_indexer.py**
+   - Add tests for file deletion handling
+   - Add tests for update operations
+   - Add consistency check tests
+
+2. **test_async.py**
+   - Add file watcher tests
+   - Add event handling tests
+   - Add queue priority tests
+
+3. New test files needed:
+   - test_file_watcher.py
+   - test_change_detector.py
+   - test_system_manager.py
+   - test_sync_status.py
+
 ## Future Enhancements
 
 1. Configurable consistency checks
