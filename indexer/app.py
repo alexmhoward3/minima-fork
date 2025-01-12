@@ -7,11 +7,15 @@ from async_queue import AsyncQueue
 from fastapi import FastAPI, APIRouter
 from contextlib import asynccontextmanager
 from async_loop import index_loop, crawl_loop
+from poller import AsyncPollingService
 from datetime import datetime, timedelta
 from typing import Optional, List, Literal
 from enum import Enum
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.WARNING,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 START_INDEXING = os.environ.get('START_INDEXING', 'false').lower() == 'true'
@@ -547,15 +551,28 @@ async def verify_uuid(doc: Document):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     tasks = []
+    polling_service = None
     logger.info(f"Start indexing: {START_INDEXING}")
+    
     try:
+        # Initialize and start polling service
+        if os.environ.get("POLLING_ENABLED", "false").lower() == "true":
+            polling_interval = int(os.environ.get("POLLING_INTERVAL", "300"))
+            polling_service = AsyncPollingService(indexer, polling_interval)
+            tasks.append(asyncio.create_task(polling_service.start()))
+            logger.info(f"Started polling service with interval: {polling_interval} seconds")
+        
+        # Start initial indexing if configured
         if START_INDEXING:
             tasks.extend([
                 asyncio.create_task(crawl_loop(async_queue)),
                 asyncio.create_task(index_loop(async_queue, indexer))
             ])
         yield
+        
     finally:
+        if polling_service:
+            await polling_service.stop()
         for task in tasks:
             task.cancel()
         if tasks:

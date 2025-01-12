@@ -7,6 +7,7 @@ import hashlib
 from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Set, Dict, Optional
+from qdrant_client.http.models import Filter, FieldCondition, MatchText
 from pathlib import Path
 
 from qdrant_client import QdrantClient
@@ -184,12 +185,12 @@ class Indexer:
                     # Handle tags
                     tags = set()
                     if 'tags' in doc.metadata:
-                        logger.info(f"Processing tags from metadata: {doc.metadata['tags']} (type: {type(doc.metadata['tags'])}))")
+                        logger.debug(f"Processing tags from metadata: {doc.metadata['tags']} (type: {type(doc.metadata['tags'])}))")
                         if isinstance(doc.metadata['tags'], str):
                             tags.update(tag.strip() for tag in doc.metadata['tags'].split(','))
                         elif isinstance(doc.metadata['tags'], (list, set)):
                             tags.update(doc.metadata['tags'])
-                        logger.info(f"Processed tags: {tags}")
+                        logger.debug(f"Processed tags: {tags}")
 
 
                     # Standardize dates
@@ -233,11 +234,11 @@ class Indexer:
 
             # Generate content-based UUIDs and add to store
             uuids = [self._generate_content_uuid(doc) for doc in documents]
-            logger.info(f"Generated UUIDs: {uuids}")
+            logger.debug(f"Generated UUIDs: {uuids}")
             
             ids = self.document_store.add_documents(documents=documents, ids=uuids)
             
-            logger.info(f"Successfully processed {len(ids)} documents from {loader.file_path} with UUIDs: {ids}")
+            logger.debug(f"Successfully processed {len(ids)} documents from {loader.file_path} with UUIDs: {ids}")
             
             # Log first few characters of content with their UUIDs for verification
             for doc, uid in zip(documents, uuids):
@@ -569,6 +570,75 @@ class Indexer:
             "content_preview": document.page_content[:50] + '...' if exists else None
         }
         
+    async def get_last_indexed_time(self, file_path: str) -> Optional[float]:
+        """Get the last indexed time for a file from Qdrant metadata"""
+        try:
+            # Query Qdrant for documents with matching file path
+            results = self.qdrant.scroll(
+                collection_name=self.config.QDRANT_COLLECTION,
+                scroll_filter=Filter(
+                    must=[
+                        FieldCondition(
+                            key="metadata.file_path",
+                            match=MatchText(text=file_path)
+                        )
+                    ]
+                ),
+                limit=1
+            )
+            
+            if results and results[0]:
+                # Return the last_indexed_time if it exists
+                return results[0][0].payload.get("metadata", {}).get("last_indexed_time")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error getting last indexed time for {file_path}: {e}")
+            return None
+
+    async def update_last_indexed_time(self, file_path: str, timestamp: float):
+        """Update the last indexed time for a file in Qdrant metadata"""
+        try:
+            # Find documents with matching file path
+            results = self.qdrant.scroll(
+                collection_name=self.config.QDRANT_COLLECTION,
+                scroll_filter=Filter(
+                    must=[
+                        FieldCondition(
+                            key="metadata.file_path",
+                            match=MatchText(text=file_path)
+                        )
+                    ]
+                )
+            )
+            
+            if results and results[0]:
+                # Update all matching documents
+                for point in results[0]:
+                    point.payload["metadata"]["last_indexed_time"] = timestamp
+                    self.qdrant.update_points(
+                        collection_name=self.config.QDRANT_COLLECTION,
+                        points=[point]
+                    )
+                    
+        except Exception as e:
+            logger.error(f"Error updating last indexed time for {file_path}: {e}")
+
+    async def index_async(self, message: Dict[str, str]):
+        """Async version of index method for use with polling service"""
+        try:
+            # Process the file
+            self.index(message)
+            
+            # Update the last indexed time
+            await self.update_last_indexed_time(
+                message["path"],
+                datetime.now().timestamp()
+            )
+            
+        except Exception as e:
+            logger.error(f"Error in async indexing: {e}")
+
     def _generate_content_uuid(self, document) -> str:
         """Generate a deterministic UUID based on document content and metadata"""
         # Combine relevant fields for hashing

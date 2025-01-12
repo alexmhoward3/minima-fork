@@ -47,5 +47,24 @@ C:\Users\Alex\Documents\Projects\minima-fork\docker-compose-mcp.yml
 </files>
 
 <task>
-I would like to start implementing other doc loaders, beginning with PDFs. Don't make any code changes. Just walk me through how we'd do that based on my current codebase.
+I'd like to ensure that changes to my obsidian vault are reflected in the qdrant vector database. I've experimented with a complex file watching mechanism, but it wasn't reliably detecting changes in the Obsidian vault
+It was struggling with path mappings between Windows and the Docker container
+The file watcher approach had multiple points of failure
+
+Solution Design
+Instead of real-time file watching, i'd like to implement a much simpler polling-based solution that:
+
+Periodically scans the vault directory (every 5 minutes, 20 seconds to start for testing)
+Compares file modification timestamps
+Only re-indexes files that have changed
+Stores the last indexed time in Qdrant metadata
+
+Key Changes
+Add a new poll_for_changes() method to indexer.py that checks for modified files
+Create a new poller.py with a simple polling loop
+
+However, i'm getting an error in the logs: 2025-01-11 22:46:43 indexer-1  | INFO:     Waiting for application startup.
+2025-01-11 22:49:22 indexer-1  | 2025-01-12 04:49:22,790 - indexer - ERROR - Error updating last indexed time for /usr/src/app/local_files/Work/03-Resources/Meetings/2024-12-19 Annemarie 1 to 1.md: 'QdrantClient' object has no attribute 'update_points'
+2025-01-11 22:49:24 indexer-1  | 2025-01-12 04:49:24,055 - indexer - ERROR - Error updating last indexed time for /usr/src/app/local_files/Personal/03_Resources/Notetaking/Workflow from book highlights.md: 'QdrantClient' object has no attribute 'update_points'
+2025-01-11 22:49:24 indexer-1  | 2025-01-12 04:49:24,572 - indexer - ERROR - Error updating last indexed time for /usr/src/app/local_files/Work/01-Projects/Hong Kong Trip/HK article.md: 'QdrantClient' object has no attribute 'update_points'
 </task>

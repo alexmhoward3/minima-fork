@@ -26,7 +26,9 @@ This basically just parses frontmatter, tags and dataview (?). Capturing links i
 
 ## Next thing to try
 - start with the file sync doc next
-  - play around with deep search tools
+  - abandoned this for a simple poller. I think i'm onto something, but not sure.
+  - Also think there's something afoot with the tag processing. 
+- play around with deep search tools
 - add other loaders - png, docs, txt, pdfs, etc
   - Images: https://python.langchain.com/docs/integrations/document_loaders/image/
 

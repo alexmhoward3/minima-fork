@@ -12,12 +12,12 @@ CONTAINER_PATH = "/usr/src/app/local_files/"
 AVAILABLE_EXTENSIONS = [ ".pdf", ".xls", ".docx", ".txt", ".md", ".csv" ]
 
 async def crawl_loop(async_queue):
-    logger.info(f"Starting crawl loop with path: {CONTAINER_PATH}")
+    logger.debug(f"Starting crawl loop with path: {CONTAINER_PATH}")
     for root, _, files in os.walk(CONTAINER_PATH):
-        logger.info(f"Processing folder: {root}")
+        logger.debug(f"Processing folder: {root}")
         for file in files:
             if not any(file.endswith(ext) for ext in AVAILABLE_EXTENSIONS):
-                logger.info(f"Skipping file: {file}")
+                logger.debug(f"Skipping file: {file}")
                 continue
             path = os.path.join(root, file)
             message = {
@@ -25,7 +25,7 @@ async def crawl_loop(async_queue):
                 "file_id": str(uuid.uuid4())
             }
             async_queue.enqueue(message)
-            logger.info(f"File enqueue: {path}")
+            logger.debug(f"File enqueue: {path}")
 
 
 async def index_loop(async_queue, indexer: Indexer):

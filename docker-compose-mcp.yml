@@ -14,7 +14,7 @@ services:
     volumes:
       - F:/qdrant_data:/qdrant/storage
     environment:
-      QDRANT__LOG_LEVEL: "INFO"
+      QDRANT__LOG_LEVEL: "WARN"
 
   indexer:
     build: 
@@ -49,6 +49,8 @@ services:
       - EMBEDDING_SIZE=${EMBEDDING_SIZE}
       - START_INDEXING=${START_INDEXING}
       - CONTAINER_PATH=/usr/src/app/local_files/
+      - POLLING_ENABLED=${POLLING_ENABLED}
+      - POLLING_INTERVAL=${POLLING_INTERVAL}
     depends_on:
       - qdrant
 volumes:
