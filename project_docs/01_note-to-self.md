@@ -27,6 +27,7 @@ This basically just parses frontmatter, tags and dataview (?). Capturing links i
 ## Next thing to try
 - start with the file sync doc next
   - play around with deep search tools
+- Look at deduplicating document_summary tool
 - add other loaders - png, docs, txt, pdfs, etc
   - Images: https://python.langchain.com/docs/integrations/document_loaders/image/
 

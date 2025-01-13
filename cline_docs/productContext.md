@@ -20,10 +20,10 @@ The system should:
 - Respect ignore files to prevent indexing of unwanted documents
 - Use document relationships to improve search relevance
 - Provide advanced analysis capabilities:
-  - Summarize key documents
-  - Generate timelines of documents
-  - Group documents by topics/tags
-  - Analyze document frequency trends over time
+  - Summarize key documents (`document_summary`)
+  - Generate timelines of documents (`document_timeline`)
+  - Group documents by topics/tags (`document_topics`)
+  - Analyze document frequency trends over time (`document_trends`)
 - Offer both basic and advanced search options
-  - Basic search for quick lookups
-  - Advanced search with filtering by date range and tags, and different analysis modes
+  - Basic search (`query`) for quick lookups
+  - Advanced search (`deep_search`) with filtering by date range and tags, and different analysis modes (`summary`, `timeline`, `topics`, `trends`)

@@ -9,9 +9,11 @@
 - Qdrant vector database with payload support
 - BAAI/bge-m3 reranker model
 - GPU acceleration frameworks (MPS/CUDA)
-- FastAPI for creating the API endpoints
-- Uvicorn as the ASGI server
-- Pydantic for data validation and settings management
+  - FastAPI for creating the API endpoints
+  - Uvicorn as the ASGI server
+  - Pydantic for data validation and settings management
+  - Custom tools for document summarization, timeline generation, topic extraction, and trend analysis
+  - Integration with MCP for tool exposure
 - python-multipart for parsing multipart form data
 
 ## Development setup

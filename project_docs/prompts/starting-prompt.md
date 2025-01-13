@@ -47,5 +47,8 @@ C:\Users\Alex\Documents\Projects\minima-fork\docker-compose-mcp.yml
 </files>
 
 <task>
-I would like to start implementing other doc loaders, beginning with PDFs. Don't make any code changes. Just walk me through how we'd do that based on my current codebase.
-</task>
+I've noticed that there are several duplicated tags in my qdrant payloads, some repeating the filename. I've written this doc on conducting a tag cleanup. I want you to plan out the first steps, which you will implement using filesystem tools. 
+
+C:\Users\Alex\Documents\Projects\minima-fork\project_docs\tag_cleanup.md
+
+ </task>
