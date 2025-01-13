@@ -47,8 +47,13 @@ C:\Users\Alex\Documents\Projects\minima-fork\docker-compose-mcp.yml
 </files>
 
 <task>
-I've noticed that there are several duplicated tags in my qdrant payloads, some repeating the filename. I've written this doc on conducting a tag cleanup. I want you to plan out the first steps, which you will implement using filesystem tools. Make sure to use the edit_tool whenever possible.
+In my .env file, i have START_INDEXING=true, but it's not being picked up by the container. the container starts with it set to false. 
 
-C:\Users\Alex\Documents\Projects\minima-fork\project_docs\tag_cleanup.md
+2025-01-12 20:38:48 indexer-1  | INFO:     Started server process [9]
+2025-01-12 20:38:48 indexer-1  | INFO:     Waiting for application startup.
+2025-01-12 20:38:48 indexer-1  | INFO:app:Start indexing: False
+2025-01-12 20:38:48 indexer-1  | INFO:     Application startup complete.
+
+please review the necessary files and troubleshoot.
 
  </task>

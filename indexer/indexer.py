@@ -4,6 +4,7 @@ import torch
 import logging
 import fnmatch
 import hashlib
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Set, Dict, Optional
@@ -222,11 +223,15 @@ class Indexer:
         if not filepath:
             return False
             
+        # Normalize paths and tags for comparison
+        filepath_parts = [p.lower() for p in Path(filepath).parts]
+        filename = Path(filepath).stem.lower()
+        tag_lower = tag.lower()
+        
         return (
-            tag in filepath or
-            tag.lower() in filepath.lower() or
-            tag in filepath.split('/') or
-            f"{tag}.md" in filepath
+            tag_lower in filepath_parts or  # Check if tag matches any path component
+            tag_lower == filename or  # Check if tag matches filename without extension
+            any(tag_lower == part.lower() for part in filepath.split('/'))
         )
 
     def _process_file(self, loader) -> List[str]:
@@ -253,7 +258,14 @@ class Indexer:
 
                 # For Obsidian files, standardize metadata
                 if isinstance(loader, ObsidianLoader):
-                    # Process tags using the new method
+                    # First, make sure we have the full file path
+                    doc.metadata['file_path'] = os.path.abspath(doc.metadata['path'])
+                    
+                    # Extract and save inline tags before processing
+                    inline_tags = {match.group(1) for match in re.finditer(r'#([^\s#]+(?:/[^\s#]+)*)', doc.page_content)}
+                    doc.metadata['inline_tags'] = inline_tags
+                    
+                    # Process all tags using the new method
                     tags = self._process_tags(doc.metadata)
 
 
