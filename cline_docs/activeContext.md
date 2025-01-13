@@ -17,6 +17,5 @@ Updating documentation to reflect the new document summarization and analysis to
 - Updated `mcp-server/src/minima/server.py` to expose the new tools via MCP.
 
 ## Next steps
-- Update the rest of the `cline_docs/` files to reflect the new functionality.
 - Test the new tools thoroughly.
 - Consider adding more advanced analysis capabilities.

@@ -157,6 +157,78 @@ class Indexer:
         
         return loader_class(file_path=file_path)
 
+    def _process_tags(self, metadata: Dict) -> Set[str]:
+        """Process and clean tags from document metadata
+        Handles both frontmatter tags and inline tags while removing duplicates and invalid tags.
+        
+        Args:
+            metadata: Document metadata dictionary containing tags
+            
+        Returns:
+            Set of cleaned and validated tags
+        """
+        tags = set()
+        
+        # Process frontmatter tags
+        if 'tags' in metadata:
+            raw_tags = metadata['tags']
+            logger.debug(f"Processing frontmatter tags: {raw_tags}")
+            
+            if isinstance(raw_tags, str):
+                # Handle comma-separated string tags
+                tags.update(tag.strip() for tag in raw_tags.split(','))
+            elif isinstance(raw_tags, (list, set)):
+                # Handle list/set of tags
+                tags.update(str(tag).strip() for tag in raw_tags if tag)
+                
+        # Process inline tags if they exist
+        if 'inline_tags' in metadata:
+            inline_tags = metadata['inline_tags']
+            logger.debug(f"Processing inline tags: {inline_tags}")
+            tags.update(inline_tags)
+            
+        # Clean and validate tags
+        clean_tags = set()
+        for tag in tags:
+            # Skip empty tags
+            if not tag or not tag.strip():
+                continue
+                
+            # Clean the tag
+            tag = tag.strip('#').strip()
+            
+            # Skip invalid tags
+            if not self._validate_tag(tag):
+                logger.debug(f"Skipping invalid tag: {tag}")
+                continue
+                
+            # Skip path-based tags
+            if self._is_path_based_tag(tag, metadata.get('file_path', '')):
+                logger.debug(f"Skipping path-based tag: {tag}")
+                continue
+                
+            clean_tags.add(tag)
+            
+        logger.info(f"Processed tags: {clean_tags}")
+        return clean_tags
+        
+    def _validate_tag(self, tag: str) -> bool:
+        """Validate if a tag is legitimate."""
+        invalid_patterns = ['.md', '.txt', '\\', ' ']  # Allow forward slashes for hierarchy
+        return not any(pattern in tag for pattern in invalid_patterns)
+        
+    def _is_path_based_tag(self, tag: str, filepath: str) -> bool:
+        """Check if tag is derived from file path or name."""
+        if not filepath:
+            return False
+            
+        return (
+            tag in filepath or
+            tag.lower() in filepath.lower() or
+            tag in filepath.split('/') or
+            f"{tag}.md" in filepath
+        )
+
     def _process_file(self, loader) -> List[str]:
         """Process a file and add it to the document store"""
         try:
@@ -181,15 +253,8 @@ class Indexer:
 
                 # For Obsidian files, standardize metadata
                 if isinstance(loader, ObsidianLoader):
-                    # Handle tags
-                    tags = set()
-                    if 'tags' in doc.metadata:
-                        logger.info(f"Processing tags from metadata: {doc.metadata['tags']} (type: {type(doc.metadata['tags'])}))")
-                        if isinstance(doc.metadata['tags'], str):
-                            tags.update(tag.strip() for tag in doc.metadata['tags'].split(','))
-                        elif isinstance(doc.metadata['tags'], (list, set)):
-                            tags.update(doc.metadata['tags'])
-                        logger.info(f"Processed tags: {tags}")
+                    # Process tags using the new method
+                    tags = self._process_tags(doc.metadata)
 
 
                     # Standardize dates
@@ -265,6 +330,67 @@ class Indexer:
                 logger.error(f"Failed to index file {path}: {str(e)}")
         except Exception as e:
             logger.error(f"Failed to index file {path}: {str(e)}")
+
+    def cleanup_tags(self) -> Dict[str, any]:
+        """Clean up tags in all documents in the index.
+        - Removes duplicate tags
+        - Removes path-based tags
+        - Validates all tags
+        - Updates documents with cleaned tags
+        """
+        try:
+            # Get all documents
+            results = self.qdrant.scroll(
+                collection_name=self.config.QDRANT_COLLECTION,
+                limit=1000  # Adjust if you have more documents
+            )
+            
+            if not results or not results[0]:
+                return {"message": "No documents found", "processed": 0, "updated": 0}
+                
+            processed = 0
+            updated = 0
+            
+            for point in results[0]:
+                processed += 1
+                
+                # Skip if no metadata or tags
+                if not point.payload or 'metadata' not in point.payload:
+                    continue
+                    
+                metadata = point.payload['metadata']
+                if 'tags' not in metadata:
+                    continue
+                    
+                # Process tags using our new method
+                old_tags = set(metadata['tags'])
+                clean_tags = self._process_tags(metadata)
+                
+                # Update document if tags changed
+                if old_tags != clean_tags:
+                    logger.info(f"Updating tags for document {point.id}")
+                    logger.info(f"Old tags: {old_tags}")
+                    logger.info(f"New tags: {clean_tags}")
+                    
+                    # Update the document's tags
+                    metadata['tags'] = list(clean_tags)
+                    self.qdrant.set_payload(
+                        collection_name=self.config.QDRANT_COLLECTION,
+                        payload={'metadata': metadata},
+                        points=[point.id]
+                    )
+                    updated += 1
+            
+            return {
+                "message": "Successfully cleaned up tags",
+                "processed": processed,
+                "updated": updated,
+                "details": f"Processed {processed} documents, updated {updated} with cleaned tags"
+            }
+            
+        except Exception as e:
+            logger.error(f"Tag cleanup failed: {str(e)}")
+            return {"error": f"Unable to clean up tags: {str(e)}"}
 
     def find(self, query: str) -> Dict[str, any]:
         try:

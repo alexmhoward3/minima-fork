@@ -47,7 +47,7 @@ C:\Users\Alex\Documents\Projects\minima-fork\docker-compose-mcp.yml
 </files>
 
 <task>
-I've noticed that there are several duplicated tags in my qdrant payloads, some repeating the filename. I've written this doc on conducting a tag cleanup. I want you to plan out the first steps, which you will implement using filesystem tools. 
+I've noticed that there are several duplicated tags in my qdrant payloads, some repeating the filename. I've written this doc on conducting a tag cleanup. I want you to plan out the first steps, which you will implement using filesystem tools. Make sure to use the edit_tool whenever possible.
 
 C:\Users\Alex\Documents\Projects\minima-fork\project_docs\tag_cleanup.md
 

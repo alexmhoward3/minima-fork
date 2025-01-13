@@ -524,6 +524,19 @@ async def cleanup_ignored():
         return {"error": str(e)}
 
 @router.post(
+    "/cleanup-tags",
+    response_description='Clean up and validate all tags in the index'
+)
+async def cleanup_tags():
+    try:
+        result = indexer.cleanup_tags()
+        logger.info(f"Tag cleanup result: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"Error in tag cleanup: {e}")
+        return {"error": str(e)}
+
+@router.post(
     "/verify-uuid",
     response_description='Check if a document exists by content-based UUID'
 )

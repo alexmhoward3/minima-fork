@@ -21,6 +21,9 @@ npx -y @modelcontextprotocol/inspector uv --directory c:/Users/Alex/Documents/Pr
 uses the .minimaignore file to target cleanup files
 curl -X POST http://localhost:8001/cleanup-ignored
 
+## cleanup-tags
+C:\Users\Alex\Documents\Projects\minima-fork>curl -X POST http://localhost:8001/cleanup-tags
+
 ## DONE ObsidianLoader
 This basically just parses frontmatter, tags and dataview (?). Capturing links in notes might have to be a parsing regex. Update: decided not to do this
 
@@ -40,6 +43,7 @@ This basically just parses frontmatter, tags and dataview (?). Capturing links i
 - [x] establish method of preventing duplicates (UUIDs)
 - [x] added "deep search" tool, which allows claude to run queries like "summary" 
 - [ ] might consider taking the requester services out of indexer. it currently requires indexer.py to be running
+- [ ] look at the indexer_refactoring doc (maybe after tag fix)
 - [x] fix "source" in "query" tool: Source: C:\Users\Alex\OneDrive\Apps\remotely-save\Obsidian VaultWork/03-Resources/Meetings/2024-01-25 Tree test for main nav.md (GAVE UP ON THIS)
 - [ ] look at indexing - this could make date searches more efficient if i add datetime indexing (ie an index of every note's modified at date)
 - [ ] consider adding a no-limit flag to queries to return all results.

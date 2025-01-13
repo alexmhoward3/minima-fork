@@ -1,7 +1,22 @@
 # Tag System Cleanup
 
 ## Overview
-Current tag system needs to capture both frontmatter and inline tags while removing redundant path-based tags. The system should preserve tag hierarchy and clean up duplicates.
+
+### Current Issues
+The ObsidianLoader is currently creating redundant tags from multiple sources:
+
+1. **Path-Based Tag Generation**:
+   - File path components become tags (e.g., "Resource", "meetings")
+   - Full filename is added as a tag
+   - Hierarchical paths create redundant tags (e.g., "Resource/meetings" gets split into "Resource" and "meetings")
+   - Path components are duplicated (e.g., "Meetings", "Meetings/[filename]")
+
+### Goals
+The system needs to:
+1. Capture both frontmatter and inline tags
+2. Remove all path-based tag generation
+3. Preserve intended tag hierarchy
+4. Clean up duplicates
 
 ## Files Impacted
 1. `indexer/indexer.py`
@@ -119,23 +134,85 @@ The system needs to capture tags from two sources:
        )
    ```
 
-### Implementation Steps
+### Implementation Status
 
-1. **Add Inline Tag Support**
+Completed:
+1. ✅ Tag Processing Core
+   - Added `_process_tags()` method for unified tag handling
+   - Added `_validate_tag()` for tag validation
+   - Added `_is_path_based_tag()` for path-based tag detection
+   - Integrated new tag processing into document indexing flow
+
+2. ✅ Tag Cleanup Infrastructure
+   - Added `cleanup_tags()` method to Indexer class
+   - Added `/cleanup-tags` API endpoint
+   - Implemented batch processing of existing documents
+   - Added logging and progress tracking
+
+Remaining Tasks:
+1. **Fix Path-Based Tag Generation**
+   - Review and modify ObsidianLoader tag extraction:
+     ```python
+     # Current behavior to fix in _process_file:
+     tags.update(doc.metadata.get('file_path', '').split('/'))  # Creates path component tags
+     tags.add(os.path.basename(doc.metadata['file_path']))      # Adds filename as tag
+     ```
+   - Modify tag processing to:
+     ```python
+     def _process_tags(self, doc):
+         tags = set()
+         # Only process explicit frontmatter tags
+         if 'tags' in doc.metadata:
+             raw_tags = doc.metadata['tags']
+             if isinstance(raw_tags, str):
+                 tags.add(raw_tags)
+             elif isinstance(raw_tags, (list, set)):
+                 tags.update(raw_tags)
+         return tags
+     ```
+   - Add path validation:
+     ```python
+     def _is_path_derived(self, tag: str, filepath: str) -> bool:
+         # Normalize paths and tags for comparison
+         filepath_parts = [p.lower() for p in filepath.split('/')]
+         filename = os.path.basename(filepath).lower()
+         tag_lower = tag.lower()
+         
+         return (
+             tag_lower in filepath_parts or          # Check path components
+             tag_lower == filename or                # Check filename
+             tag_lower == os.path.splitext(filename)[0]  # Check filename without extension
+         )
+     ```
+   - Add test cases:
+     ```python
+     def test_no_path_based_tags(self):
+         doc = Document(
+             metadata={
+                 'file_path': '/Work/Resources/meetings/2024-01-12.md',
+                 'tags': ['Resources/meetings']
+             }
+         )
+         processed_tags = self.indexer._process_tags(doc)
+         assert 'Resources' not in processed_tags
+         assert 'meetings' not in processed_tags
+         assert 'Resources/meetings' in processed_tags
+     ```
+
+2. **Add Inline Tag Support**
    - Implement `_extract_inline_tags` using ObsidianLoader's TAG_REGEX
    - Add test cases for various inline tag formats
    - Verify hierarchical inline tags are preserved
 
-2. **Update Tag Processing**
-   - Combine frontmatter and inline tags
-   - Remove all automatic tag generation from paths
-   - Preserve hierarchical structure of tags
-   - Add tracking of current file path for validation
-
-3. **Search Result Processing**
+2. **Search Result Enhancements**
    - Update deep_search to handle combined tag sources
    - Ensure tag filtering works with hierarchical structure
    - Remove any remaining path-based tag logic
+
+3. **Testing and Validation**
+   - Run comprehensive tests with various tag formats
+   - Verify hierarchical tag preservation
+   - Test edge cases and error handling
 
 ## Testing Strategy
 
