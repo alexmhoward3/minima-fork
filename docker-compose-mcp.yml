@@ -3,7 +3,6 @@ version: '3.9'
 # Global environment variables
 x-environment: &shared-environment
   LOCAL_FILES_PATH: /usr/src/app/local_files
-  HOST_FILES_PATH: ${LOCAL_FILES_PATH}
   EMBEDDING_MODEL_ID: ${EMBEDDING_MODEL_ID}
   EMBEDDING_SIZE: ${EMBEDDING_SIZE}
   START_INDEXING: ${START_INDEXING}
@@ -52,9 +51,11 @@ services:
       - type: bind
         source: ${LOCAL_FILES_PATH}
         target: /usr/src/app/local_files
-      - ./indexer:/usr/src/app
+      - type: bind
+        source: ./indexer
+        target: /usr/src/app/indexer
       - ./indexer/.minimaignore:/usr/src/app/local_files/.minimaignore
-      - huggingface_cache:/root/.cache/huggingface      
+      - huggingface_cache:/root/.cache/huggingface  
     ports:
       - 8001:8000
     environment: 

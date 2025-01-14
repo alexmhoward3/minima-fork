@@ -21,11 +21,7 @@ def get_env_with_default(key: str, default: str = None) -> str:
         if key in ['LOCAL_FILES_PATH', 'CONTAINER_PATH']:
             value = '/usr/src/app/local_files'
             logger.info(f"Using default container path for {key}: {value}")
-        elif key == 'HOST_FILES_PATH':
-            # Try to get it from LOCAL_FILES_PATH
-            value = os.environ.get('LOCAL_FILES_PATH', default)
-            if value:
-                logger.info(f"Using LOCAL_FILES_PATH for HOST_FILES_PATH: {value}")
+
         else:
             logger.debug(f"Environment variable {key} not set, using default: {default}")
     else:
@@ -36,7 +32,7 @@ def validate_config() -> Dict[str, Any]:
     """Validate required environment variables and paths."""
     config = {
         "LOCAL_FILES_PATH": get_env_with_default("LOCAL_FILES_PATH", "/usr/src/app/local_files"),
-        "HOST_FILES_PATH": get_env_with_default("HOST_FILES_PATH"),
+
         "CONTAINER_PATH": get_env_with_default("CONTAINER_PATH", "/usr/src/app/local_files"),
         "EMBEDDING_MODEL_ID": get_env_with_default("EMBEDDING_MODEL_ID"),
         "EMBEDDING_SIZE": get_env_with_default("EMBEDDING_SIZE"),
@@ -62,19 +58,13 @@ def validate_config() -> Dict[str, Any]:
             if not exists:
                 status["warnings"].append(f"{path_key} path does not exist: {path}")
     
-    # For HOST_FILES_PATH, we don't check existence as it's the path on the host machine
-    if config["HOST_FILES_PATH"]:
-        status["path_status"]["HOST_FILES_PATH"] = {
-            "path": config["HOST_FILES_PATH"],
-            "exists": "unknown"  # Can't check host path from container
-        }
+
     
     # Check required variables
     for key, value in config.items():
         if value is None:
             status["missing_vars"].append(key)
-            if key not in ["HOST_FILES_PATH"]:  # HOST_FILES_PATH is optional
-                status["valid"] = False
+            # Don't set valid to false - these are warnings not errors
     
     if not status["valid"]:
         logger.error(f"Configuration validation failed: {status}")

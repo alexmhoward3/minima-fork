@@ -2,8 +2,10 @@ FROM pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime
 
 WORKDIR /usr/src/app
 RUN apt-get update && apt-get install -y git
+RUN mkdir -p /usr/src/app/local_files
 
 ARG EMBEDDING_MODEL_ID
+ARG EMBEDDING_SIZE
 ARG START_INDEXING
 ARG RERANKER_MODEL
 ARG CHUNK_SIZE
@@ -17,11 +19,16 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
+# Set environment variables
+ENV EMBEDDING_MODEL_ID=${EMBEDDING_MODEL_ID}
+ENV EMBEDDING_SIZE=${EMBEDDING_SIZE}
 ENV START_INDEXING=${START_INDEXING}
-RUN echo "START_INDEXING is $START_INDEXING"
-
 ENV CHUNK_SIZE=${CHUNK_SIZE}
 ENV CHUNK_OVERLAP=${CHUNK_OVERLAP}
+
+RUN echo "EMBEDDING_MODEL_ID is $EMBEDDING_MODEL_ID"
+RUN echo "EMBEDDING_SIZE is $EMBEDDING_SIZE"
+RUN echo "START_INDEXING is $START_INDEXING"
 
 ENV PORT 8000
 ENV CURRENT_HOST 0.0.0.0

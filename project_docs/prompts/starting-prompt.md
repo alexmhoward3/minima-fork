@@ -47,7 +47,12 @@ C:\Users\Alex\Documents\Projects\minima-fork\docker-compose-mcp.yml
 </files>
 
 <task>
-I'm having trouble with the document_summary tool. Here's the error i get:
-INFO:root:Document summary args: {'query': 'new york nitya alex butler app taxonomy book', 'start_date': datetime.datetime(2024, 12, 1, 0, 0), 'end_date': datetime.datetime(2024, 12, 15, 0, 0), 'tags': None, 'include_raw': True}
-WARNING:minima.requestor:LOCAL_FILES_PATH not set, falling back to container path: /usr/src/app/local_files 
+I think there's something wrong with the way the indexer is handling the .env file. when i run the mcp inspector and try to use the tool, i get these errors: 
+INFO:mcp.server:Processing request of type ListToolsRequest
+INFO:mcp.server:Processing request of type CallToolRequest
+INFO:root:Document summary args: {'query': 'test', 'start_date': None, 'end_date': None, 'tags': None, 'include_raw': False}
+ERROR:minima.requestor:Configuration validation failed: {'valid': False, 'missing_vars': ['HOST_FILES_PATH', 'EMBEDDING_MODEL_ID', 'EMBEDDING_SIZE', 'START_INDEXING'], 'path_status': {'LOCAL_FILES_PATH': {'path': '/usr/src/app/local_files', 'exists': False}, 'CONTAINER_PATH': {'path': '/usr/src/app/local_files', 'exists': False}}, 'warnings': ['LOCAL_FILES_PATH path does not exist: /usr/src/app/local_files', 'CONTAINER_PATH path does not exist: /usr/src/app/local_files']}
+WARNING:minima.requestor:Some configuration validation failed, continuing with defaults INFO:minima.requestor:Using default container path for LOCAL_FILES_PATH: /usr/src/app/local_files
+WARNING:minima.requestor:No valid paths found, falling back to container path: /usr/src/app/local_files INFO:minima.requestor:Using effective path: /usr/src/app/local_files
+INFO:httpx:HTTP Request: POST http://localhost:8001/query/deep "HTTP/1.1 200 OK" 
  </task>
