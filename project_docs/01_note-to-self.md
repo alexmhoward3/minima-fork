@@ -29,7 +29,7 @@ This basically just parses frontmatter, tags and dataview (?). Capturing links i
 
 ## Next thing to try
 - start with the file sync doc next
-  - play around with deep search tools
+- play around with deep search tools
 - Look at deduplicating document_summary tool
 - add other loaders - png, docs, txt, pdfs, etc
   - Images: https://python.langchain.com/docs/integrations/document_loaders/image/
@@ -48,7 +48,7 @@ This basically just parses frontmatter, tags and dataview (?). Capturing links i
 - [x] fix "source" in "query" tool: Source: C:\Users\Alex\OneDrive\Apps\remotely-save\Obsidian VaultWork/03-Resources/Meetings/2024-01-25 Tree test for main nav.md (GAVE UP ON THIS)
 - [ ] look at indexing - this could make date searches more efficient if i add datetime indexing (ie an index of every note's modified at date)
 - [ ] consider adding a no-limit flag to queries to return all results.
-- [ ] how does the reranker work in the minima indexer > qdrant vector store > mcp query workflow? Answer: i think it was showign deduplicated results and returning only one of dozens of duplicates
+- [x] how does the reranker work in the minima indexer > qdrant vector store > mcp query workflow? Answer: i think it was showign deduplicated results and returning only one of dozens of duplicates
 - [ ] consider adding a progress bar to indexing
 - [x] the tool just returns one search result. how can we improve that?
   - i want to improve the tools available in @/mcp-server/ . First, the tool only allows a single search result. can we implement a TOP_K variable that allows the user the ability to set the number, ex TOP_K=3 (figured this out, but top_k would be useful in future)

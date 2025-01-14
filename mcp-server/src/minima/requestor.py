@@ -1,38 +1,151 @@
 import os
 import httpx
 import logging
-from typing import Any, Dict
-
+from typing import Any, Dict, Optional
+from pathlib import Path
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 REQUEST_DATA_URL = "http://localhost:8001/query"
-DEEP_SEARCH_URL = f"{REQUEST_DATA_URL}/deep"  # Deep search endpoint
+DEEP_SEARCH_URL = f"{REQUEST_DATA_URL}/deep"
 REQUEST_HEADERS = {
     'Accept': 'application/json',
     'Content-Type': 'application/json'
 }
 
-async def request_data(query):
-    payload = {
-        "query": query
+def get_env_with_default(key: str, default: str = None) -> str:
+    """Get environment variable with default value and logging."""
+    value = os.environ.get(key, default)
+    if value is None:
+        if key in ['LOCAL_FILES_PATH', 'CONTAINER_PATH']:
+            value = '/usr/src/app/local_files'
+            logger.info(f"Using default container path for {key}: {value}")
+        elif key == 'HOST_FILES_PATH':
+            # Try to get it from LOCAL_FILES_PATH
+            value = os.environ.get('LOCAL_FILES_PATH', default)
+            if value:
+                logger.info(f"Using LOCAL_FILES_PATH for HOST_FILES_PATH: {value}")
+        else:
+            logger.debug(f"Environment variable {key} not set, using default: {default}")
+    else:
+        logger.debug(f"Environment variable {key} = {value}")
+    return value
+
+def validate_config() -> Dict[str, Any]:
+    """Validate required environment variables and paths."""
+    config = {
+        "LOCAL_FILES_PATH": get_env_with_default("LOCAL_FILES_PATH", "/usr/src/app/local_files"),
+        "HOST_FILES_PATH": get_env_with_default("HOST_FILES_PATH"),
+        "CONTAINER_PATH": get_env_with_default("CONTAINER_PATH", "/usr/src/app/local_files"),
+        "EMBEDDING_MODEL_ID": get_env_with_default("EMBEDDING_MODEL_ID"),
+        "EMBEDDING_SIZE": get_env_with_default("EMBEDDING_SIZE"),
+        "START_INDEXING": get_env_with_default("START_INDEXING")
     }
+    
+    status = {
+        "valid": True,
+        "missing_vars": [],
+        "path_status": {},
+        "warnings": []
+    }
+    
+    # Check paths
+    for path_key in ["LOCAL_FILES_PATH", "CONTAINER_PATH"]:
+        path = config[path_key]
+        if path:
+            exists = os.path.exists(path)
+            status["path_status"][path_key] = {
+                "path": path,
+                "exists": exists
+            }
+            if not exists:
+                status["warnings"].append(f"{path_key} path does not exist: {path}")
+    
+    # For HOST_FILES_PATH, we don't check existence as it's the path on the host machine
+    if config["HOST_FILES_PATH"]:
+        status["path_status"]["HOST_FILES_PATH"] = {
+            "path": config["HOST_FILES_PATH"],
+            "exists": "unknown"  # Can't check host path from container
+        }
+    
+    # Check required variables
+    for key, value in config.items():
+        if value is None:
+            status["missing_vars"].append(key)
+            if key not in ["HOST_FILES_PATH"]:  # HOST_FILES_PATH is optional
+                status["valid"] = False
+    
+    if not status["valid"]:
+        logger.error(f"Configuration validation failed: {status}")
+    else:
+        logger.info("Configuration validation passed")
+    
+    return status
+
+def get_effective_path() -> str:
+    """Get the effective file path based on environment configuration."""
+    container_path = get_env_with_default("CONTAINER_PATH", "/usr/src/app/local_files")
+    local_path = get_env_with_default("LOCAL_FILES_PATH")
+    
+    # Try container path first
+    if os.path.exists(container_path):
+        logger.info(f"Using container path: {container_path}")
+        return container_path
+    
+    # Then try local path
+    if local_path and os.path.exists(local_path):
+        logger.info(f"Using local path: {local_path}")
+        return local_path
+    
+    # Fallback to container path
+    logger.warning(f"No valid paths found, falling back to container path: {container_path}")
+    return container_path
+
+def translate_path(file_path: str, direction: str = "to_host") -> str:
+    """Translate paths between host and container environments."""
+    container_path = get_env_with_default("CONTAINER_PATH", "/usr/src/app/local_files")
+    host_path = get_env_with_default("HOST_FILES_PATH")
+    
+    if not host_path:
+        return file_path
+    
+    if direction == "to_host":
+        if file_path.startswith(container_path):
+            translated = file_path.replace(container_path, host_path)
+            logger.debug(f"Translated container path {file_path} to host path {translated}")
+            return translated
+    else:  # to_container
+        if file_path.startswith(host_path):
+            translated = file_path.replace(host_path, container_path)
+            logger.debug(f"Translated host path {file_path} to container path {translated}")
+            return translated
+    
+    return file_path
+
+async def request_data(query):
+    payload = {"query": query}
     async with httpx.AsyncClient() as client:
         try:
-            logger.info(f"Requesting data from indexer with query: {query}")
+            logger.info(f"Requesting data with query: {query}")
             response = await client.post(REQUEST_DATA_URL, 
                                       headers=REQUEST_HEADERS, 
                                       json=payload)
             response.raise_for_status()
             data = response.json()
-            logger.info(f"Received data: {data}")
             
-            # Format the results nicely
             results = []
             if "output" in data:
+                if isinstance(data["output"], list):
+                    for item in data["output"]:
+                        if "metadata" in item and "file_path" in item["metadata"]:
+                            item["metadata"]["file_path"] = translate_path(
+                                item["metadata"]["file_path"], 
+                                "to_host"
+                            )
+                
                 results.append({
-                    "output": data["output"],  # Now contains the full array of results
+                    "output": data["output"],
                     "links": list(data["links"]) if "links" in data else [],
                     "metadata": data.get("metadata", []),
                     "relevance_scores": data.get("relevance_scores", [])
@@ -44,73 +157,48 @@ async def request_data(query):
             }
 
         except Exception as e:
-            logger.error(f"HTTP error: {e}")
-            return { "error": str(e) }
+            logger.error(f"Request error: {e}")
+            return {"error": str(e)}
 
 async def request_deep_search(query):
-    # Get environment variable for local files path with fallback
-    local_files_path = os.environ.get('LOCAL_FILES_PATH')
-    if not local_files_path:
-        # Fallback to the containerized path which should work in Docker
-        local_files_path = '/usr/src/app/local_files'
-        logger.warning(f"LOCAL_FILES_PATH not set, falling back to container path: {local_files_path}")
-    else:
-        logger.debug(f"Using LOCAL_FILES_PATH from env: {local_files_path}")
-
-
-    """
-    Handle deep search requests with advanced filtering and analysis capabilities.
-    
-    Args:
-        query: DeepSearchQuery object containing search parameters
-    """
+    """Handle deep search requests with advanced filtering and analysis."""
     try:
+        # Validate configuration
+        config_status = validate_config()
+        if not config_status["valid"]:
+            logger.warning("Some configuration validation failed, continuing with defaults")
+        
+        # Get effective path
+        effective_path = get_effective_path()
+        logger.info(f"Using effective path: {effective_path}")
+
         # Validate mode
         from .models import SearchMode
         mode = query.mode
         if not isinstance(mode, SearchMode):
             logger.error(f"Invalid mode: {mode}")
-            return {"error": f"Invalid mode. Must be one of: {', '.join([m.value for m in SearchMode])}"}
+            return {"error": f"Invalid mode: must be one of {[m.value for m in SearchMode]}"}
 
-
-        # Construct payload with explicit validation
+        # Build payload
         payload = {
             "mode": mode,
+            "query": query.query.strip() if query.query else None,
+            "include_raw": bool(query.include_raw)
         }
         
-        # Add query if present
-        if query.query:
-            payload["query"] = query.query.strip()  # Basic sanitization
-
-        # Handle dates with validation
-        try:
-            if query.start_date:
-                payload["start_date"] = query.start_date.isoformat()
-                logger.debug(f"Start date parsed: {payload['start_date']}")
-        except Exception as e:
-            logger.error(f"Error processing start_date: {e}")
-            return {"error": f"Invalid start date format: {e}"}
-
-        try:
-            if query.end_date:
-                payload["end_date"] = query.end_date.isoformat()
-                logger.debug(f"End date parsed: {payload['end_date']}")
-        except Exception as e:
-            logger.error(f"Error processing end_date: {e}")
-            return {"error": f"Invalid end date format: {e}"}
-
-        # Handle boolean flag
-        payload["include_raw"] = bool(query.include_raw)
-
-        # Handle tags with validation
+        # Handle dates
+        if query.start_date:
+            payload["start_date"] = query.start_date.isoformat()
+        if query.end_date:
+            payload["end_date"] = query.end_date.isoformat()
+            
+        # Handle tags
         if query.tags:
             if not isinstance(query.tags, list):
-                logger.error(f"Invalid tags format: {query.tags}")
                 return {"error": "Tags must be a list of strings"}
-            payload["tags"] = [str(tag).strip() for tag in query.tags if tag]  # Sanitize and filter empty tags
+            payload["tags"] = [str(tag).strip() for tag in query.tags if tag]
 
-        # Log the final payload for debugging
-        logger.debug(f"Final deep search payload: {payload}")
+        logger.debug(f"Deep search payload: {payload}")
 
         async with httpx.AsyncClient() as client:
             try:
@@ -118,19 +206,14 @@ async def request_deep_search(query):
                     DEEP_SEARCH_URL,
                     headers=REQUEST_HEADERS,
                     json=payload,
-                    timeout=60.0  # Increased timeout
+                    timeout=60.0
                 )
                 response.raise_for_status()
                 data = response.json()
-                logger.debug(f"Deep search response status: {response.status_code}")
-                logger.debug(f"Deep search response data: {data}")
                 
-                # Validate response structure
                 if not isinstance(data, dict):
-                    logger.error(f"Invalid response format: {data}")
                     return {"error": "Invalid response format from server"}
 
-                # Process the response based on the search mode
                 processed_data = {
                     "analysis": data.get("analysis"),
                     "metadata": data.get("metadata", {})
@@ -138,21 +221,12 @@ async def request_deep_search(query):
                 
                 if query.include_raw:
                     processed_data["raw_results"] = []
-                    logger.debug(f"Raw results from deep search: {data.get('raw_results', [])}")
                     for result in data.get("raw_results", []):
-                        logger.debug(f"Processing result: {result}")
-                        logger.debug(f"Result metadata: {result.get('metadata', {})}")
-
-                        # Get metadata from result
                         metadata = result.get('metadata', {})
-                        
                         file_path = metadata.get('file_path', 'Unknown')
-                        logger.debug(f"Initial file_path: {file_path}")
                         
                         if file_path != 'Unknown':
-                            file_path = os.path.normpath(os.path.join(local_files_path, file_path.lstrip('/')))
-                        
-                        logger.debug(f"Final file_path: {file_path}")
+                            file_path = translate_path(file_path, "to_host")
                         
                         processed_result = {
                             "source": file_path,
@@ -167,16 +241,12 @@ async def request_deep_search(query):
                 return processed_data
 
             except httpx.TimeoutException:
-                logger.error("Deep search request timed out")
                 return {"error": "Request timed out"}
             except httpx.HTTPStatusError as e:
-                logger.error(f"HTTP error: {e.response.status_code} - {e.response.text}")
                 return {"error": f"HTTP error: {e.response.status_code}"}
             except httpx.RequestError as e:
-                logger.error(f"Request error: {e}")
                 return {"error": f"Request failed: {str(e)}"}
             except Exception as e:
-                logger.error(f"Unexpected error in HTTP request: {e}")
                 return {"error": f"Unexpected error: {str(e)}"}
 
     except Exception as e:

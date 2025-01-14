@@ -47,13 +47,7 @@ C:\Users\Alex\Documents\Projects\minima-fork\docker-compose-mcp.yml
 </files>
 
 <task>
-In my .env file, i have START_INDEXING=true, but it's not being picked up by the container. the container starts with it set to false. 
-
-2025-01-12 20:38:48 indexer-1  | INFO:     Started server process [9]
-2025-01-12 20:38:48 indexer-1  | INFO:     Waiting for application startup.
-2025-01-12 20:38:48 indexer-1  | INFO:app:Start indexing: False
-2025-01-12 20:38:48 indexer-1  | INFO:     Application startup complete.
-
-please review the necessary files and troubleshoot.
-
+I'm having trouble with the document_summary tool. Here's the error i get:
+INFO:root:Document summary args: {'query': 'new york nitya alex butler app taxonomy book', 'start_date': datetime.datetime(2024, 12, 1, 0, 0), 'end_date': datetime.datetime(2024, 12, 15, 0, 0), 'tags': None, 'include_raw': True}
+WARNING:minima.requestor:LOCAL_FILES_PATH not set, falling back to container path: /usr/src/app/local_files 
  </task>

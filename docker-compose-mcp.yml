@@ -1,6 +1,19 @@
 version: '3.9'
-services:
 
+# Global environment variables
+x-environment: &shared-environment
+  LOCAL_FILES_PATH: /usr/src/app/local_files
+  HOST_FILES_PATH: ${LOCAL_FILES_PATH}
+  EMBEDDING_MODEL_ID: ${EMBEDDING_MODEL_ID}
+  EMBEDDING_SIZE: ${EMBEDDING_SIZE}
+  START_INDEXING: ${START_INDEXING}
+  CONTAINER_PATH: /usr/src/app/local_files
+  QDRANT_HOST: qdrant
+  QDRANT_PORT: 6333
+  PYTHONPATH: /usr/src
+  PYTHONUNBUFFERED: 'TRUE'
+
+services:
   qdrant:
     image: qdrant/qdrant:latest
     container_name: qdrant
@@ -15,6 +28,7 @@ services:
       - F:/qdrant_data:/qdrant/storage
     environment:
       QDRANT__LOG_LEVEL: "INFO"
+      <<: *shared-environment
 
   indexer:
     build: 
@@ -35,21 +49,18 @@ services:
               count: 1
               capabilities: [gpu]
     volumes:
-      - ${LOCAL_FILES_PATH}:/usr/src/app/local_files/
+      - type: bind
+        source: ${LOCAL_FILES_PATH}
+        target: /usr/src/app/local_files
       - ./indexer:/usr/src/app
       - ./indexer/.minimaignore:/usr/src/app/local_files/.minimaignore
       - huggingface_cache:/root/.cache/huggingface      
     ports:
       - 8001:8000
-    environment:
-      - PYTHONPATH=/usr/src
-      - PYTHONUNBUFFERED=TRUE
-      - LOCAL_FILES_PATH=${LOCAL_FILES_PATH}
-      - EMBEDDING_MODEL_ID=${EMBEDDING_MODEL_ID}
-      - EMBEDDING_SIZE=${EMBEDDING_SIZE}
-      - START_INDEXING=${START_INDEXING}
-      - CONTAINER_PATH=/usr/src/app/local_files/
+    environment: 
+      <<: *shared-environment 
     depends_on:
       - qdrant
+
 volumes:
   huggingface_cache:

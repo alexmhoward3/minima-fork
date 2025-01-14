@@ -27,4 +27,7 @@ ENV PORT 8000
 ENV CURRENT_HOST 0.0.0.0
 ENV WORKERS 1
 
-CMD ["sh", "-c", "uvicorn app:app --loop asyncio --reload --workers ${WORKERS} --host $CURRENT_HOST --port $PORT --proxy-headers"]
+# Make the entrypoint script executable
+RUN chmod +x entrypoint.sh
+
+ENTRYPOINT ["./entrypoint.sh"]
