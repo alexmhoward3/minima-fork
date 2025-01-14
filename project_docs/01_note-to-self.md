@@ -24,10 +24,10 @@ curl -X POST http://localhost:8001/cleanup-ignored
 ## cleanup-tags
 C:\Users\Alex\Documents\Projects\minima-fork>curl -X POST http://localhost:8001/cleanup-tags
 
-## DONE ObsidianLoader
-This basically just parses frontmatter, tags and dataview (?). Capturing links in notes might have to be a parsing regex. Update: decided not to do this
+
 
 ## Next thing to try
+- Fix the local files problem. something happened before/during tag-cleanup, it looks like
 - start with the file sync doc next
 - play around with deep search tools
 - Look at deduplicating document_summary tool
@@ -59,3 +59,5 @@ This basically just parses frontmatter, tags and dataview (?). Capturing links i
     - Daily notes: "C:\Users\Alex\OneDrive\Apps\remotely-save\Obsidian Vault\Periodic Notes\Daily Notes\2024\11-November\2024-11-12.md"
     - Meeting notes: "C:\Users\Alex\OneDrive\Apps\remotely-save\Obsidian Vault\Work\03-Resources\Meetings\2024-01-08 PI Planning Kickoff.md"
     - Project notes: "C:\Users\Alex\OneDrive\Apps\remotely-save\Obsidian Vault\Work\01-Projects\Grand Army Discovery Sessions.md"
+ ## DONE ObsidianLoader
+This basically just parses frontmatter, tags and dataview (?). Capturing links in notes might have to be a parsing regex. Update: decided not to do this
