@@ -14,7 +14,9 @@ from enum import Enum
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-START_INDEXING = os.environ.get('START_INDEXING', 'false').lower() == 'true'
+raw_start_indexing = os.environ.get('START_INDEXING', 'false')
+logger.info(f"Raw START_INDEXING value: {raw_start_indexing}")
+START_INDEXING = raw_start_indexing.lower() == 'true'
 
 indexer = Indexer()
 async_queue = AsyncQueue()

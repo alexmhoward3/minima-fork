@@ -24,10 +24,11 @@ curl -X POST http://localhost:8001/cleanup-ignored
 ## cleanup-tags
 C:\Users\Alex\Documents\Projects\minima-fork>curl -X POST http://localhost:8001/cleanup-tags
 
-
+## Indexing control
+Now in docker compose file
 
 ## Next thing to try
-- Fix the local files problem. something happened before/during tag-cleanup, it looks like
+- ~~Fix the local files problem. something happened before/during tag-cleanup, it looks like~~
 - start with the file sync doc next
 - play around with deep search tools
 - Look at deduplicating document_summary tool

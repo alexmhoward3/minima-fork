@@ -60,7 +60,8 @@ services:
     ports:
       - 8001:8000
     environment: 
-      <<: *shared-environment 
+      <<: *shared-environment
+      START_INDEXING: "true"
     depends_on:
       - qdrant
 
