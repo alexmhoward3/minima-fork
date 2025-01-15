@@ -3,6 +3,7 @@ version: '3.9'
 # Global environment variables
 x-environment: &shared-environment
   LOCAL_FILES_PATH: /usr/src/app/local_files
+  HOST_FILES_PATH: ${LOCAL_FILES_PATH} 
   EMBEDDING_MODEL_ID: ${EMBEDDING_MODEL_ID}
   EMBEDDING_SIZE: ${EMBEDDING_SIZE}
   START_INDEXING: ${START_INDEXING}

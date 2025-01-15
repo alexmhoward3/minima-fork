@@ -14,26 +14,18 @@ REQUEST_HEADERS = {
     'Content-Type': 'application/json'
 }
 
+CONTAINER_PATH = "/usr/src/app/local_files"
+
 def get_env_with_default(key: str, default: str = None) -> str:
     """Get environment variable with default value and logging."""
     value = os.environ.get(key, default)
     if value is None:
-        if key in ['LOCAL_FILES_PATH', 'CONTAINER_PATH']:
-            value = '/usr/src/app/local_files'
-            logger.info(f"Using default container path for {key}: {value}")
-
-        else:
-            logger.debug(f"Environment variable {key} not set, using default: {default}")
-    else:
-        logger.debug(f"Environment variable {key} = {value}")
+        logger.debug(f"Environment variable {key} not set, using default: {default}")
     return value
 
 def validate_config() -> Dict[str, Any]:
-    """Validate required environment variables and paths."""
+    """Validate required environment variables."""
     config = {
-        "LOCAL_FILES_PATH": get_env_with_default("LOCAL_FILES_PATH", "/usr/src/app/local_files"),
-
-        "CONTAINER_PATH": get_env_with_default("CONTAINER_PATH", "/usr/src/app/local_files"),
         "EMBEDDING_MODEL_ID": get_env_with_default("EMBEDDING_MODEL_ID"),
         "EMBEDDING_SIZE": get_env_with_default("EMBEDDING_SIZE"),
         "START_INDEXING": get_env_with_default("START_INDEXING")
@@ -41,30 +33,13 @@ def validate_config() -> Dict[str, Any]:
     
     status = {
         "valid": True,
-        "missing_vars": [],
-        "path_status": {},
-        "warnings": []
+        "missing_vars": []
     }
-    
-    # Check paths
-    for path_key in ["LOCAL_FILES_PATH", "CONTAINER_PATH"]:
-        path = config[path_key]
-        if path:
-            exists = os.path.exists(path)
-            status["path_status"][path_key] = {
-                "path": path,
-                "exists": exists
-            }
-            if not exists:
-                status["warnings"].append(f"{path_key} path does not exist: {path}")
-    
-
     
     # Check required variables
     for key, value in config.items():
         if value is None:
             status["missing_vars"].append(key)
-            # Don't set valid to false - these are warnings not errors
     
     if not status["valid"]:
         logger.error(f"Configuration validation failed: {status}")
@@ -74,44 +49,8 @@ def validate_config() -> Dict[str, Any]:
     return status
 
 def get_effective_path() -> str:
-    """Get the effective file path based on environment configuration."""
-    container_path = get_env_with_default("CONTAINER_PATH", "/usr/src/app/local_files")
-    local_path = get_env_with_default("LOCAL_FILES_PATH")
-    
-    # Try container path first
-    if os.path.exists(container_path):
-        logger.info(f"Using container path: {container_path}")
-        return container_path
-    
-    # Then try local path
-    if local_path and os.path.exists(local_path):
-        logger.info(f"Using local path: {local_path}")
-        return local_path
-    
-    # Fallback to container path
-    logger.warning(f"No valid paths found, falling back to container path: {container_path}")
-    return container_path
-
-def translate_path(file_path: str, direction: str = "to_host") -> str:
-    """Translate paths between host and container environments."""
-    container_path = get_env_with_default("CONTAINER_PATH", "/usr/src/app/local_files")
-    host_path = get_env_with_default("HOST_FILES_PATH")
-    
-    if not host_path:
-        return file_path
-    
-    if direction == "to_host":
-        if file_path.startswith(container_path):
-            translated = file_path.replace(container_path, host_path)
-            logger.debug(f"Translated container path {file_path} to host path {translated}")
-            return translated
-    else:  # to_container
-        if file_path.startswith(host_path):
-            translated = file_path.replace(host_path, container_path)
-            logger.debug(f"Translated host path {file_path} to container path {translated}")
-            return translated
-    
-    return file_path
+    """Get the container file path."""
+    return CONTAINER_PATH
 
 async def request_data(query):
     payload = {"query": query}
@@ -126,14 +65,6 @@ async def request_data(query):
             
             results = []
             if "output" in data:
-                if isinstance(data["output"], list):
-                    for item in data["output"]:
-                        if "metadata" in item and "file_path" in item["metadata"]:
-                            item["metadata"]["file_path"] = translate_path(
-                                item["metadata"]["file_path"], 
-                                "to_host"
-                            )
-                
                 results.append({
                     "output": data["output"],
                     "links": list(data["links"]) if "links" in data else [],
@@ -157,10 +88,10 @@ async def request_deep_search(query):
         config_status = validate_config()
         if not config_status["valid"]:
             logger.warning("Some configuration validation failed, continuing with defaults")
-        
+
         # Get effective path
         effective_path = get_effective_path()
-        logger.info(f"Using effective path: {effective_path}")
+        logger.debug(f"Using path: {effective_path}")
 
         # Validate mode
         from .models import SearchMode
@@ -212,14 +143,9 @@ async def request_deep_search(query):
                 if query.include_raw:
                     processed_data["raw_results"] = []
                     for result in data.get("raw_results", []):
-                        metadata = result.get('metadata', {})
-                        file_path = metadata.get('file_path', 'Unknown')
-                        
-                        if file_path != 'Unknown':
-                            file_path = translate_path(file_path, "to_host")
-                        
+                        metadata = result.get('metadata', {})                        
                         processed_result = {
-                            "source": file_path,
+                            "source": metadata.get('file_path', 'Unknown'),
                             "content": result.get("content", ""),
                             "tags": metadata.get("tags", []),
                             "modified_at": metadata.get("modified_at")
