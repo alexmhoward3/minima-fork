@@ -1,6 +1,102 @@
 # Qdrant Sync Implementation Plan
 
 ## Overview
+This plan details the implementation of a sync system to keep Qdrant's vector database in sync with changes to the Obsidian vault. Two implementation approaches are provided: a comprehensive solution and a simplified quick-start solution.
+
+## Simplified Implementation
+For quick deployment and testing, this simplified approach can be implemented in a few hours:
+
+```python
+async def check_for_changes(self):
+    """Simple periodic check for file changes"""
+    current_files = {}
+    
+    # Scan files and get basic metadata
+    for root, _, files in os.walk(self.config.CONTAINER_PATH):
+        for file in files:
+            if not file.endswith('.md'):  # Only check markdown files
+                continue
+            
+            path = os.path.join(root, file)
+            try:
+                stat = os.stat(path)
+                current_files[path] = stat.st_mtime
+            except:
+                continue
+
+    # Get existing files from Qdrant
+    results = self.qdrant.scroll(
+        collection_name=self.config.QDRANT_COLLECTION,
+        limit=10000
+    )
+    
+    if not results or not results[0]:
+        # Nothing in Qdrant yet, index everything
+        for path in current_files:
+            self.index({"path": path, "file_id": str(uuid.uuid4())})
+        return
+
+    # Build map of existing files in Qdrant
+    indexed_files = {}
+    for point in results[0]:
+        if 'metadata' in point.payload and 'file_path' in point.payload['metadata']:
+            path = point.payload['metadata']['file_path']
+            mtime = point.payload['metadata'].get('modified_at_timestamp', 0)
+            indexed_files[path] = mtime
+
+    # Check for changes
+    for path, mtime in current_files.items():
+        if path not in indexed_files or abs(indexed_files[path] - mtime) > 1:
+            # File is new or modified, reindex it
+            self.index({"path": path, "file_id": str(uuid.uuid4())})
+
+    # Check for deletions
+    for path in indexed_files:
+        if path not in current_files:
+            # File was deleted, remove from Qdrant
+            self.qdrant.delete(
+                collection_name=self.config.QDRANT_COLLECTION,
+                points_filter=Filter(
+                    must=[FieldCondition(key="metadata.file_path", match={"text": path})]
+                )
+            )
+```
+
+Add to app.py:
+```python
+async def run_indexer():
+    indexer = Indexer()
+    
+    while True:
+        try:
+            await indexer.check_for_changes()
+        except Exception as e:
+            print(f"Error checking for changes: {e}")
+        await asyncio.sleep(60)  # Check every minute
+
+if __name__ == "__main__":
+    asyncio.run(run_indexer())
+```
+
+### Simplified Implementation Benefits
+- Quick to implement (2-3 hours)
+- Simple modification time comparison
+- Basic error handling
+- Minimal configuration needed
+- Works with Docker volumes
+- No complex state tracking
+
+### Simplified Implementation Limitations
+- May reindex files unnecessarily
+- No batching of operations
+- Basic error handling only
+- No performance optimizations
+- No progress tracking
+- Limited monitoring capabilities
+
+## Comprehensive Implementation
+If more robust functionality is needed later, the following sections detail a more complete implementation...
+
 This plan details the implementation of a sync system to keep Qdrant's vector database in sync with changes to the Obsidian vault. The solution uses Qdrant's native indexing and upsert capabilities to efficiently track and handle file changes.
 
 ## Core Concept

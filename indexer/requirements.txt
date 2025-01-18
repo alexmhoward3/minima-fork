@@ -10,11 +10,7 @@ asyncio==3.4.3
 fastapi==0.111.0
 qdrant-client
 uvicorn[standard]
-unstructured[xlsx]
 python-magic
 python-dotenv
-openpyxl
-docx2txt
-pymupdf
 pydantic
 python-dateutil

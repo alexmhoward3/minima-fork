@@ -47,7 +47,9 @@ C:\Users\Alex\Documents\Projects\minima-fork\docker-compose-mcp.yml
 </files>
 
 <task>
-I think there's something wrong with the way the way the indexer is (or isn't) using the .env file. I started up using
-docker compose -f docker-compose-mcp.yml down --volumes=false; docker compose -f docker-compose-mcp.yml up --build -d
-with "START_INDEXING=TRUE" and the logs show: 2025-01-14 20:33:35 indexer-1  | INFO:app:Start indexing: False 
+I want to update the dockerfile to remove some dependencies that aren't being utilized at the moment. Please remove
+poppler-utils (for PDFs)
+tesseract-ocr (for OCR in documents)
+libreoffice (for office documents)
+pandoc (for document conversion)
  </task>

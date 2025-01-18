@@ -1,7 +1,15 @@
 FROM pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime
 
 WORKDIR /usr/src/app
-RUN apt-get update && apt-get install -y git
+
+# Install system dependencies including Rust
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    build-essential \
+    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
+    && . $HOME/.cargo/env
+
 RUN mkdir -p /usr/src/app/local_files
 
 ARG EMBEDDING_MODEL_ID
@@ -11,12 +19,16 @@ ARG RERANKER_MODEL
 ARG CHUNK_SIZE
 ARG CHUNK_OVERLAP
 
+# Download models
 RUN pip install huggingface_hub
 RUN huggingface-cli download $EMBEDDING_MODEL_ID --repo-type model
 RUN huggingface-cli download $RERANKER_MODEL --repo-type model
 
+# Install Python dependencies
 COPY requirements.txt .
+ENV PATH="/root/.cargo/bin:${PATH}"
 RUN pip install --no-cache-dir -r requirements.txt
+
 COPY . .
 
 # Set environment variables
