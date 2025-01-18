@@ -1,6 +1,7 @@
 import os
 import logging
 import asyncio
+from logger_config import configure_logging
 from indexer import Indexer
 from pydantic import BaseModel
 from async_queue import AsyncQueue
@@ -11,8 +12,14 @@ from datetime import datetime, timedelta
 from typing import Optional, List, Literal
 from enum import Enum
 
-logging.basicConfig(level=logging.INFO)
+# Configure logging once at startup
+aggregate_logger = configure_logging(force=True)
 logger = logging.getLogger(__name__)
+
+# Disable noisy logs
+logging.getLogger('uvicorn.access').setLevel(logging.WARNING)
+logging.getLogger('uvicorn.error').setLevel(logging.WARNING)
+logging.getLogger('asyncio').setLevel(logging.WARNING)
 
 raw_start_indexing = os.environ.get('START_INDEXING', 'false')
 logger.info(f"Raw START_INDEXING value: {raw_start_indexing}")

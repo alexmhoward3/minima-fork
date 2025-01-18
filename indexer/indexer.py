@@ -3,6 +3,7 @@ import uuid
 import torch
 import logging
 import fnmatch
+from logger_config import configure_logging
 import hashlib
 import re
 from dataclasses import dataclass
@@ -29,6 +30,7 @@ from langchain_community.document_loaders import (
 
 
 logger = logging.getLogger(__name__)
+aggregate_logger = configure_logging()
 
 
 @dataclass
@@ -210,7 +212,7 @@ class Indexer:
                 
             clean_tags.add(tag)
             
-        logger.info(f"Processed tags: {clean_tags}")
+        logger.debug(f"Processed tags: {clean_tags}")
         return clean_tags
         
     def _validate_tag(self, tag: str) -> bool:
@@ -310,16 +312,11 @@ class Indexer:
 
             # Generate content-based UUIDs and add to store
             uuids = [self._generate_content_uuid(doc) for doc in documents]
-            logger.info(f"Generated UUIDs: {uuids}")
+            logger.debug(f"Generated UUIDs for {loader.file_path}")
             
             ids = self.document_store.add_documents(documents=documents, ids=uuids)
             
-            logger.info(f"Successfully processed {len(ids)} documents from {loader.file_path} with UUIDs: {ids}")
-            
-            # Log first few characters of content with their UUIDs for verification
-            for doc, uid in zip(documents, uuids):
-                preview = doc.page_content[:50] + '...' if len(doc.page_content) > 50 else doc.page_content
-                logger.info(f"Content preview: {preview} -> UUID: {uid}")
+            logger.debug(f"Successfully processed {len(ids)} documents from {loader.file_path}")
             return ids
             
         except Exception as e:
@@ -327,17 +324,19 @@ class Indexer:
             return []
 
     def index(self, message: Dict[str, str]) -> None:
+        """Index a single file with minimal logging"""
         path, file_id = message["path"], message["file_id"]
-        logger.info(f"Processing file: {path} (ID: {file_id})")
+        logger.debug(f"Processing file: {path}")
         
         try:
             loader = self._create_loader(path)
             ids = self._process_file(loader)
             if ids:
-                logger.info(f"Successfully indexed {path} with IDs: {ids}")
+                logger.debug(f"Successfully indexed {path}")
+                self.aggregate_logger.add_event('indexed')
         except ValueError as e:
             if "ignored by .minimaignore" in str(e):
-                logger.info(str(e))  # Log ignored files as info, not error
+                logger.debug(str(e))  # Log ignored files as debug
             else:
                 logger.error(f"Failed to index file {path}: {str(e)}")
         except Exception as e:
