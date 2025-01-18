@@ -27,6 +27,16 @@ C:\Users\Alex\Documents\Projects\minima-fork>curl -X POST http://localhost:8001/
 ## Indexing control
 Now in docker compose file
 
+## Supergateway. 
+Run with 
+Alex@Alex-Desktop MINGW64 ~/Documents/Projects
+$ npx -y supergateway --port 8000 --stdio "node C:/Users/Alex/Documents/Projects/mcp/servers/src/filesystem/dist/index.js C:/Users/Alex/Documents/Projects C:/Users/Alex/Documents/ C:/Users/Alex/AppData/Roaming/Claude \"C:/Users/Alex/OneDrive/Apps/remotely-save/Obsidian Vault\""
+
+Then format librechat.yaml
+mcpServers:
+  filesystem:
+    url: http://host.docker.internal:8000/sse
+
 ## Next thing to try
 - ~~Fix the local files problem. something happened before/during tag-cleanup, it looks like~~
 - start with the file sync doc next
