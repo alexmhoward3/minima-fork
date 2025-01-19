@@ -11,11 +11,46 @@ from datetime import datetime, timedelta
 from typing import Optional, List, Literal
 from enum import Enum
 
-logging.basicConfig(level=logging.INFO)
+# Set up logging with emojis and formatting
 logger = logging.getLogger(__name__)
+default_formatter = logging.Formatter(
+    fmt='%(asctime)s | %(levelname)s | %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+
+# Emoji mapping for log levels
+EMOJIS = {
+    'ERROR': '❌',
+    'WARNING': '⚠️',
+    'INFO': 'ℹ️',
+    'DEBUG': '🔍'
+}
+
+class EmojiFormatter(logging.Formatter):
+    def format(self, record):
+        # Add emoji prefix based on log level
+        emoji = EMOJIS.get(record.levelname, '')
+        record.msg = f"{emoji} {record.msg}"
+        return super().format(record)
+
+# Set up handler with emoji formatter
+handler = logging.StreamHandler()
+handler.setFormatter(EmojiFormatter(
+    fmt='%(asctime)s | %(levelname)s | %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+))
+logger.addHandler(handler)
+
+# Set log level
+logger.setLevel(logging.INFO)
+
+# Disable noisy loggers
+logging.getLogger('httpx').setLevel(logging.WARNING)
+logging.getLogger('httpcore').setLevel(logging.WARNING)
+logging.getLogger('asyncio').setLevel(logging.WARNING)
 
 raw_start_indexing = os.environ.get('START_INDEXING', 'false')
-logger.info(f"Raw START_INDEXING value: {raw_start_indexing}")
+logger.debug(f"📗 START_INDEXING value: {raw_start_indexing}")
 START_INDEXING = raw_start_indexing.lower() == 'true'
 
 indexer = Indexer()
@@ -45,7 +80,7 @@ class DeepSearchQuery(BaseModel):
 
 @router.post("/query/deep")
 async def deep_search(request: DeepSearchQuery):
-    logger.info(f"Received deep search request: {request}")
+    logger.info(f"🔎 Processing search: {request.mode} mode")
     try:
         # Validate date range if provided
         if request.start_date and request.end_date:
@@ -132,13 +167,13 @@ async def deep_search(request: DeepSearchQuery):
             if "error" not in result:
                 all_results = result["output"]
             
-        logger.info(f"Search returned {len(result.get('output', [])) if isinstance(result, dict) else 0} results")
+        logger.info(f"📑 Found {len(result.get('output', [])) if isinstance(result, dict) else 0} results")
 
         # Log the structure of the result for debugging
         logger.debug(f"Result keys: {result.keys() if isinstance(result, dict) else 'Not a dict'}")
         
         if "error" in result:
-            logger.error(f"Base search error: {result['error']}")
+            logger.error(f"❌ Search failed: {result['error']}")
             return result
             
         # Validate and log result structure
@@ -477,7 +512,7 @@ async def deep_search(request: DeepSearchQuery):
         if request.include_raw:
             response["raw_results"] = result["output"]
             
-        logger.info(f"Deep search complete. Response: {response}")
+        logger.info(f"✅ Search complete: {len(response.get('raw_results', [])) if 'raw_results' in response else 0} results")
         return response
 
     except Exception as e:
@@ -489,10 +524,10 @@ async def deep_search(request: DeepSearchQuery):
     response_description='Query local data storage',
 )
 async def query(request: Query):
-    logger.info(f"Received query: {request.query}")
+    logger.info(f"🔍 Query: {request.query}")
     try:
         result = indexer.find(request.query)
-        logger.info(f"Found results: {result}")
+        logger.debug(f"📑 Full results: {result}")
         return result
     except Exception as e:
         logger.error(f"Error in processing query: {e}")
@@ -506,7 +541,7 @@ async def embedding(request: Query):
     logger.info(f"Received embedding request: {request}")
     try:
         result = indexer.embed(request.query)
-        logger.info(f"Found {len(result)} results for query: {request.query}")
+        logger.info(f"📊 Found {len(result)} matches for: {request.query}")
         return {"result": result}
     except Exception as e:
         logger.error(f"Error in processing embedding: {e}")
@@ -532,7 +567,7 @@ async def cleanup_ignored():
 async def cleanup_tags():
     try:
         result = indexer.cleanup_tags()
-        logger.info(f"Tag cleanup result: {result}")
+        logger.info(f"🎯 Tag cleanup: {result.get('processed', 0)} processed, {result.get('updated', 0)} updated")
         return result
     except Exception as e:
         logger.error(f"Error in tag cleanup: {e}")

@@ -47,9 +47,14 @@ C:\Users\Alex\Documents\Projects\minima-fork\docker-compose-mcp.yml
 </files>
 
 <task>
-I want to update the dockerfile to remove some dependencies that aren't being utilized at the moment. Please remove
-poppler-utils (for PDFs)
-tesseract-ocr (for OCR in documents)
-libreoffice (for office documents)
-pandoc (for document conversion)
+I want to quiet down the noisiness of the logs. They should show only error logs for any issues and conscice change summaries, eg:
+INFO: 🔄 Initial indexing of 42 files
+INFO: 📝 Changes detected: 2 modified, 1 deleted
+The logs should be:
+
+More concise and focused on important information
+Use emojis for better visual scanning
+Show aggregate counts instead of individual file updates
+Hide HTTP request/response logs
+Moved debug-level information to debug log level
  </task>

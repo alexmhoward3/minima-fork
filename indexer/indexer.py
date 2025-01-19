@@ -28,7 +28,35 @@ from langchain_community.document_loaders import (
 )
 
 
+# Set up logging with emojis and formatting
 logger = logging.getLogger(__name__)
+default_formatter = logging.Formatter(
+    fmt='%(asctime)s | %(levelname)s | %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+
+# Emoji mapping for log levels
+EMOJIS = {
+    'ERROR': '❌',
+    'WARNING': '⚠️',
+    'INFO': 'ℹ️',
+    'DEBUG': '🔍'
+}
+
+class EmojiFormatter(logging.Formatter):
+    def format(self, record):
+        # Add emoji prefix based on log level
+        emoji = EMOJIS.get(record.levelname, '')
+        record.msg = f"{emoji} {record.msg}"
+        return super().format(record)
+
+# Set up handler with emoji formatter
+handler = logging.StreamHandler()
+handler.setFormatter(EmojiFormatter(
+    fmt='%(asctime)s | %(levelname)s | %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+))
+logger.addHandler(handler)
 
 
 @dataclass
@@ -87,7 +115,7 @@ class Indexer:
             try:
                 with open(ignore_file, 'r') as f:
                     patterns = [line.strip() for line in f if line.strip() and not line.startswith('#')]
-                logger.info(f"Loaded {len(patterns)} ignore patterns from .minimaignore")
+                logger.info(f"📋 Loaded {len(patterns)} ignore patterns")
             except Exception as e:
                 logger.error(f"Error loading .minimaignore: {e}")
         return patterns
@@ -96,14 +124,14 @@ class Indexer:
         """Check if a file should be ignored based on .minimaignore patterns"""
         try:
             relative_path = os.path.relpath(path, self.config.CONTAINER_PATH)
-            logger.debug(f"Checking if {relative_path} should be ignored")
+            logger.debug(f"🔍 Checking path: {relative_path}")
             for pattern in self.ignore_patterns:
                 if fnmatch.fnmatch(relative_path, pattern):
-                    logger.debug(f"File {relative_path} matches ignore pattern {pattern}")
+                    logger.debug(f"🚫 Ignored: {relative_path} (pattern: {pattern})")
                     return True
             return False
         except ValueError as e:
-            logger.error(f"Error checking ignore pattern for {path}: {e}")
+            logger.error(f"❌ Pattern check failed for {path}: {e}")
             return False
 
     def _initialize_qdrant(self) -> QdrantClient:
@@ -310,20 +338,20 @@ class Indexer:
 
             # Generate content-based UUIDs and add to store
             uuids = [self._generate_content_uuid(doc) for doc in documents]
-            logger.info(f"Generated UUIDs: {uuids}")
+            logger.debug(f"🔄 Generated {len(uuids)} UUIDs")
             
             ids = self.document_store.add_documents(documents=documents, ids=uuids)
             
-            logger.info(f"Successfully processed {len(ids)} documents from {loader.file_path} with UUIDs: {ids}")
+            logger.info(f"📄 Processed {len(ids)} documents from {Path(loader.file_path).name}")
             
             # Log first few characters of content with their UUIDs for verification
             for doc, uid in zip(documents, uuids):
                 preview = doc.page_content[:50] + '...' if len(doc.page_content) > 50 else doc.page_content
-                logger.info(f"Content preview: {preview} -> UUID: {uid}")
+                logger.debug(f"📝 Content: {preview}\n   UUID: {uid}")
             return ids
             
         except Exception as e:
-            logger.error(f"Error processing file {loader.file_path}: {str(e)}")
+            logger.error(f"❌ Failed to process {Path(loader.file_path).name}: {str(e)}")
             return []
 
     def index(self, message: Dict[str, str]) -> None:
@@ -506,7 +534,7 @@ class Indexer:
                 "relevance_scores": [r["metadata"]["relevance_score"] for r in unique_results]
             }
             
-            logger.info(f"Found {len(found)} results")
+            logger.info(f"🔎 Found {len(found)} matching documents")
             return output
             
         except Exception as e:
