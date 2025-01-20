@@ -32,6 +32,7 @@ C:\\Users\\Alex\\Documents\\Projects\\minima-fork\\indexer\\
 ├── async_loop.py: Contains functions for crawling the specified directory and enqueuing files for indexing (`crawl_loop`), and for processing the queue and indexing the files (`index_loop`).
 ├── async_queue.py: Defines an asynchronous queue (`AsyncQueue`) for communication between the crawling and indexing processes.
 ├── Dockerfile: Defines the Docker image for the indexer application, setting up a Python 3.11 environment, installing dependencies, and specifying the command to run the application.
+├── ignore_patterns.py: Loads ignore patterns from the .minimaignore file
 ├── indexer.py: Defines the `Indexer` class, which handles the core indexing logic, including initializing the Qdrant vector store, setting up the embedding model, and providing methods for indexing, purging, and searching documents.
 ├── requirements.txt: Lists the Python dependencies for the indexer application.
 ├── singleton.py: Defines a `Singleton` metaclass that ensures only one instance of a class is created.
@@ -55,5 +56,5 @@ All code should follow best practices of modularity, separation of concerns, err
 </coding_parameters>
 
 <task>
-I want to have the indexer recursively go through the folder structure and index all files in the vault. Right now it appears that it's only processing files at the parent folder. 
+I want to implement a .minimaignore function that uses the details in .minimaignore in the vault directory to skip files for indexing. The file is here: "C:\Users\Alex\OneDrive\Apps\remotely-save\Obsidian_Vault\.minimaignore"
  </task>
