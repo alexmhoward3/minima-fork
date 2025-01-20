@@ -56,17 +56,7 @@ All code should follow best practices of modularity, separation of concerns, err
 </coding_parameters>
 
 <task>
-Path and filepath in the metadata payload are redundant. Help me decide which to remove:
-{
-  "source": "note2.md",
-  "path": "/usr/src/app/local_files/note2.md",
-  "created": "2024-03-19T17:55",
-  "last_modified": 1735846277.6643808,
-  "last_accessed": 1737414756.1134708,
-  "tags": "Resource/messages",
-  "updated": "2024-12-13T07:53",
-  "file_path": "/usr/src/app/local_files/note2.md",
-  "global_tags": []
-}
+I want to implement a user-controled chunking strategy using variables in the .env file: size, overlap. The env file already has these variables in place. Help me modify the code to use them. 
 
+C:\Users\Alex\Documents\Projects\minima-fork\.env
  </task>
