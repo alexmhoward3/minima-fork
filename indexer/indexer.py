@@ -170,6 +170,9 @@ class Indexer:
             for doc in documents:
                 # Add file path to metadata
                 doc.metadata['file_path'] = file_path
+                # Remove redundant path field if it exists
+                if 'path' in doc.metadata:
+                    del doc.metadata['path']
                 
                 # Extract tags from frontmatter if available
                 if isinstance(loader, ObsidianLoader):

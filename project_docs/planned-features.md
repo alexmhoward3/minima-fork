@@ -3,7 +3,7 @@
 3. X gpu usage
 4. x move qdrant_data to F drive
 5. Configurable chunking strategy (size, overlap, character or H2)
-6. Improved ObsidianLoader integration:
+6. x Improved ObsidianLoader integration:
     Built-in metadata extraction
     Tag parsing from frontmatter and inline
     Proper timestamp handling

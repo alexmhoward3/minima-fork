@@ -56,15 +56,17 @@ All code should follow best practices of modularity, separation of concerns, err
 </coding_parameters>
 
 <task>
-I'm working on implementing obsidianloader as my main markdown file processor. It should extract the frontmatter and embed it into the qdrant payload, and it should extract in-line tags for chunk-specific metadata. For example, if these tags appear in the YAML frontmatter:
-`#dailynote
-#work`
-
-Then all chunks of that note should be tagged with `dailynote` and `work` in the payload.
-
-If a tag appears in-line like this: 
-`Today I took William on a #bike ride.`
-
-Then ONLY that chunk should be tagged #bike.
+Path and filepath in the metadata payload are redundant. Help me decide which to remove:
+{
+  "source": "note2.md",
+  "path": "/usr/src/app/local_files/note2.md",
+  "created": "2024-03-19T17:55",
+  "last_modified": 1735846277.6643808,
+  "last_accessed": 1737414756.1134708,
+  "tags": "Resource/messages",
+  "updated": "2024-12-13T07:53",
+  "file_path": "/usr/src/app/local_files/note2.md",
+  "global_tags": []
+}
 
  </task>
