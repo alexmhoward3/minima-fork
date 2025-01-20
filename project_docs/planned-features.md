@@ -1,4 +1,4 @@
-1. X caching huggingface models
+1.  caching huggingface models
 2. X .minimaignore - file that flags directories and files to ignore
 3. X gpu usage
 4. x move qdrant_data to F drive

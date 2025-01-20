@@ -1,4 +1,9 @@
-FROM python:3.11-slim-buster
+FROM pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime
+
+# Set CUDA environment variables
+ENV NVIDIA_VISIBLE_DEVICES all
+ENV NVIDIA_DRIVER_CAPABILITIES compute,utility
+ENV CUDA_LAUNCH_BLOCKING=1
 
 WORKDIR /usr/src/app
 RUN pip install --upgrade pip
