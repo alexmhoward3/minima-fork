@@ -28,6 +28,7 @@ services:
       - ${LOCAL_FILES_PATH}:/usr/src/app/local_files/
       - ./indexer:/usr/src/app
       - ./indexer_data:/indexer/storage
+      - huggingface_cache:/root/.cache/huggingface
     ports:
       - 8001:8000
     environment:
@@ -38,5 +39,9 @@ services:
       - EMBEDDING_SIZE=${EMBEDDING_SIZE}
       - START_INDEXING=${START_INDEXING}
       - CONTAINER_PATH=/usr/src/app/local_files/
+      - TRANSFORMERS_CACHE=/root/.cache/huggingface
     depends_on:
       - qdrant
+
+volumes:
+  huggingface_cache:
