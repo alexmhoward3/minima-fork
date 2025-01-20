@@ -1,0 +1,67 @@
+version: '3.9'
+services:
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant
+    ports:
+      - 6333:6333
+      - 6334:6334
+    expose:
+      - 6333
+      - 6334
+      - 6335
+    volumes:
+      - F:/qdrant_data:/qdrant/storage
+    environment:
+      QDRANT__LOG_LEVEL: "INFO"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333"]
+      interval: 30s
+      timeout: 1s
+      retries: 30
+
+  indexer:
+    build: 
+      context: ./indexer
+      dockerfile: Dockerfile
+      args:
+        EMBEDDING_MODEL_ID: ${EMBEDDING_MODEL_ID}
+        EMBEDDING_SIZE: ${EMBEDDING_SIZE}
+        START_INDEXING: ${START_INDEXING}
+        RERANKER_MODEL: ${RERANKER_MODEL}
+        CHUNK_SIZE: ${CHUNK_SIZE}
+        CHUNK_OVERLAP: ${CHUNK_OVERLAP}
+        CHUNK_STRATEGY: ${CHUNK_STRATEGY}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      - ${LOCAL_FILES_PATH}:/usr/src/app/local_files/
+      - ./indexer:/usr/src/app
+      - huggingface_cache:/root/.cache/huggingface
+    ports:
+      - 8001:8000
+    environment:
+      - PYTHONPATH=/usr/src
+      - PYTHONUNBUFFERED=TRUE
+      - LOCAL_FILES_PATH=${LOCAL_FILES_PATH}
+      - EMBEDDING_MODEL_ID=${EMBEDDING_MODEL_ID}
+      - EMBEDDING_SIZE=${EMBEDDING_SIZE}
+      - START_INDEXING=${START_INDEXING}
+      - CONTAINER_PATH=/usr/src/app/local_files/
+      - QDRANT_HOST=qdrant
+      - RERANKER_MODEL=${RERANKER_MODEL}
+      - CHUNK_SIZE=${CHUNK_SIZE}
+      - CHUNK_OVERLAP=${CHUNK_OVERLAP}
+      - CHUNK_STRATEGY=${CHUNK_STRATEGY}
+    depends_on:
+      qdrant:
+        condition: service_healthy
+
+volumes:
+  huggingface_cache:
