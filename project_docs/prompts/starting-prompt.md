@@ -56,5 +56,15 @@ All code should follow best practices of modularity, separation of concerns, err
 </coding_parameters>
 
 <task>
-I want to implement a .minimaignore function that uses the details in .minimaignore in the vault directory to skip files for indexing. The file is here: "C:\Users\Alex\OneDrive\Apps\remotely-save\Obsidian_Vault\.minimaignore"
+I'm working on implementing obsidianloader as my main markdown file processor. It should extract the frontmatter and embed it into the qdrant payload, and it should extract in-line tags for chunk-specific metadata. For example, if these tags appear in the YAML frontmatter:
+`#dailynote
+#work`
+
+Then all chunks of that note should be tagged with `dailynote` and `work` in the payload.
+
+If a tag appears in-line like this: 
+`Today I took William on a #bike ride.`
+
+Then ONLY that chunk should be tagged #bike.
+
  </task>

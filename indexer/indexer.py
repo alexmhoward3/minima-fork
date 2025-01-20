@@ -20,6 +20,7 @@ from langchain_community.document_loaders import (
     UnstructuredExcelLoader,
     PyMuPDFLoader,
     UnstructuredPowerPointLoader,
+    ObsidianLoader,
 )
 
 from storage import MinimaStore, IndexingStatus
@@ -38,7 +39,7 @@ class Config:
         ".docx": Docx2txtLoader,
         ".doc": Docx2txtLoader,
         ".txt": TextLoader,
-        ".md": TextLoader,
+        ".md": ObsidianLoader,
         ".csv": CSVLoader,
     }
     
@@ -110,26 +111,110 @@ class Indexer:
         if not loader_class:
             raise ValueError(f"Unsupported file type: {file_extension}")
         
+        if loader_class == ObsidianLoader:
+            # Use the container path for ObsidianLoader
+            return loader_class(path=self.config.CONTAINER_PATH, collect_metadata=True)
+        
         return loader_class(file_path=file_path)
 
-    def _process_file(self, loader) -> List[str]:
+    def _process_file(self, loader, file_path: str) -> List[str]:
         try:
-            documents = loader.load_and_split(self.text_splitter)
+            # Special handling for ObsidianLoader
+            if isinstance(loader, ObsidianLoader):
+                logger.info(f"Processing with ObsidianLoader: {file_path}")
+                # Load all documents from the directory
+                all_docs = loader.load()
+                logger.info(f"Loaded {len(all_docs)} total documents")
+                
+                # Get relative path from container path for matching
+                rel_path = os.path.relpath(file_path, self.config.CONTAINER_PATH)
+                logger.info(f"Looking for relative path: {rel_path}")
+                
+                # Log all document sources for debugging
+                sources = [doc.metadata.get('source', '') for doc in all_docs]
+                logger.info(f"Available document sources: {sources}")
+                
+                # Filter for our specific file using relative path
+                documents = []
+                for doc in all_docs:
+                    source = doc.metadata.get('source', '')
+                    if source:
+                        # Convert source to absolute path if it's relative
+                        if not os.path.isabs(source):
+                            source = os.path.join(self.config.CONTAINER_PATH, source)
+                        
+                        # Normalize both paths for comparison
+                        source_path = os.path.normpath(source)
+                        target_path = os.path.normpath(file_path)
+                        
+                        logger.info(f"Comparing source '{source_path}' with target '{target_path}'")
+                        
+                        # Try both exact match and relative path match
+                        if source_path == target_path or source_path.endswith(rel_path):
+                            logger.info(f"Found matching document with source: {source}")
+                            documents.append(doc)
+                
+                logger.info(f"Found {len(documents)} matching documents")
+                
+                # Apply text splitting if we found our document
+                if documents:
+                    documents = self.text_splitter.split_documents(documents)
+                    logger.info(f"Split into {len(documents)} chunks")
+            else:
+                documents = loader.load_and_split(self.text_splitter)
             if not documents:
-                logger.warning(f"No documents loaded from {loader.file_path}")
+                logger.warning(f"No documents loaded from {file_path}")
                 return []
 
+            logger.info("Processing documents for Qdrant insertion")
             for doc in documents:
-                doc.metadata['file_path'] = loader.file_path
+                # Add file path to metadata
+                doc.metadata['file_path'] = file_path
+                
+                # Extract tags from frontmatter if available
+                if isinstance(loader, ObsidianLoader):
+                    # Global tags from frontmatter
+                    if 'tags' in doc.metadata:
+                        tags = doc.metadata['tags']
+                        if isinstance(tags, str):
+                            # Use ObsidianLoader's TAG_REGEX to extract tags
+                            matches = ObsidianLoader.TAG_REGEX.finditer(tags)
+                            tags = [match.group(1) for match in matches if match]
+                        doc.metadata['global_tags'] = tags
+
+                    # Inline tags from content using ObsidianLoader's TAG_REGEX
+                    content_matches = ObsidianLoader.TAG_REGEX.finditer(doc.page_content)
+                    inline_tags = [match.group(1) for match in content_matches if match]
+                    if inline_tags:
+                        doc.metadata['inline_tags'] = inline_tags
 
             uuids = [str(uuid.uuid4()) for _ in range(len(documents))]
-            ids = self.document_store.add_documents(documents=documents, ids=uuids)
+            logger.info(f"Generated {len(uuids)} UUIDs for document insertion")
             
-            logger.info(f"Successfully processed {len(ids)} documents from {loader.file_path}")
-            return ids
+            try:
+                logger.info("Starting document embedding process")
+                # Log a sample document to verify content
+                if documents:
+                    sample = documents[0]
+                    logger.info(f"Sample document content: {sample.page_content[:200]}")
+                    logger.info(f"Sample document metadata: {sample.metadata}")
+
+                logger.info("Attempting to add documents to Qdrant")
+                ids = self.document_store.add_documents(documents=documents, ids=uuids)
+                logger.info(f"Successfully added {len(ids)} documents to Qdrant from {file_path}")
+                
+                # Log document details for verification
+                for i, doc in enumerate(documents):
+                    logger.info(f"Document {i} metadata: {doc.metadata}")
+                    logger.info(f"Document {i} content preview: {doc.page_content[:100]}...")
+                
+                return ids
+            except Exception as e:
+                logger.error(f"Failed to add documents to Qdrant: {str(e)}")
+                return []
             
         except Exception as e:
-            logger.error(f"Error processing file {loader.file_path}: {str(e)}")
+            logger.error(f"Error processing file {file_path}: {str(e)}")
             return []
 
     def index(self, message: Dict[str, any]) -> None:
@@ -144,7 +229,7 @@ class Indexer:
                     logger.info(f"Removing {path} from index storage for reindexing")
                     self.remove_from_storage(files_to_remove=[path])
                 loader = self._create_loader(path)
-                ids = self._process_file(loader)
+                ids = self._process_file(loader, path)
                 if ids:
                     logger.info(f"Successfully indexed {path} with IDs: {ids}")
             except Exception as e:
