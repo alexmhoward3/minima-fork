@@ -12,7 +12,7 @@ services:
       - 6334
       - 6335
     volumes:
-      - ./qdrant_data:/qdrant/storage
+      - F:/qdrant_data:/qdrant/storage
     environment:
       QDRANT__LOG_LEVEL: "INFO"
 

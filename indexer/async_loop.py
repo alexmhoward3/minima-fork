@@ -15,6 +15,8 @@ AVAILABLE_EXTENSIONS = [".pdf", ".xls", "xlsx", ".doc", ".docx", ".txt", ".md", 
 async def crawl_loop(async_queue):
     logger.info(f"Starting crawl loop with path: {CONTAINER_PATH}")
     existing_file_paths: list[str] = []
+    
+    # Walk through all directories recursively
     for root, _, files in os.walk(CONTAINER_PATH):
         logger.info(f"Processing folder: {root}")
         for file in files:
@@ -31,12 +33,14 @@ async def crawl_loop(async_queue):
             existing_file_paths.append(path)
             async_queue.enqueue(message)
             logger.info(f"File enqueue: {path}")
-        aggregate_message = {
-            "existing_file_paths": existing_file_paths,
-            "type": "all_files"
-        }
-        async_queue.enqueue(aggregate_message)
-        async_queue.enqueue({"type": "stop"})
+    
+    # Send aggregate and stop messages after processing all directories
+    aggregate_message = {
+        "existing_file_paths": existing_file_paths,
+        "type": "all_files"
+    }
+    async_queue.enqueue(aggregate_message)
+    async_queue.enqueue({"type": "stop"})
 
 
 async def index_loop(async_queue, indexer: Indexer):
