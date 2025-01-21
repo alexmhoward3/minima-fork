@@ -3,15 +3,28 @@ import uuid
 import torch
 import logging
 import time
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Log environment variables for debugging
+logger = logging.getLogger(__name__)
+logger.info(f"Environment variables:")
+logger.info(f"CHUNK_SIZE={os.environ.get('CHUNK_SIZE')}")
+logger.info(f"CHUNK_OVERLAP={os.environ.get('CHUNK_OVERLAP')}")
+logger.info(f"CHUNK_STRATEGY={os.environ.get('CHUNK_STRATEGY')}")
+
 from dataclasses import dataclass
 from typing import List, Dict
+from langchain.schema import Document
 from pathlib import Path
 
 from qdrant_client import QdrantClient
 from langchain_qdrant import QdrantVectorStore
 from langchain_huggingface import HuggingFaceEmbeddings
 from qdrant_client.http.models import Distance, VectorParams, Filter, FieldCondition, MatchValue
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from chunking import ChunkingStrategy, H2ChunkingStrategy, CharacterChunkingStrategy
 
 from langchain_community.document_loaders import (
     TextLoader,
@@ -28,42 +41,47 @@ from storage import MinimaStore, IndexingStatus
 logger = logging.getLogger(__name__)
 
 
-@dataclass
 class Config:
-    EXTENSIONS_TO_LOADERS = {
-        ".pdf": PyMuPDFLoader,
-        ".pptx": UnstructuredPowerPointLoader,
-        ".ppt": UnstructuredPowerPointLoader,
-        ".xls": UnstructuredExcelLoader,
-        ".xlsx": UnstructuredExcelLoader,
-        ".docx": Docx2txtLoader,
-        ".doc": Docx2txtLoader,
-        ".txt": TextLoader,
-        ".md": ObsidianLoader,
-        ".csv": CSVLoader,
-    }
-    
-    DEVICE = torch.device(
-        "mps" if torch.backends.mps.is_available() else
-        "cuda" if torch.cuda.is_available() else
-        "cpu"
-    )
-    
-    START_INDEXING = os.environ.get("START_INDEXING")
-    LOCAL_FILES_PATH = os.environ.get("LOCAL_FILES_PATH")
-    CONTAINER_PATH = os.environ.get("CONTAINER_PATH")
-    QDRANT_COLLECTION = "mnm_storage"
-    QDRANT_BOOTSTRAP = "qdrant"
-    EMBEDDING_MODEL_ID = os.environ.get("EMBEDDING_MODEL_ID")
-    EMBEDDING_SIZE = os.environ.get("EMBEDDING_SIZE")
-    
-    CHUNK_SIZE = int(os.environ.get('CHUNK_SIZE', 500))
-    CHUNK_OVERLAP = int(os.environ.get('CHUNK_OVERLAP', 200))
-    
-    def __post_init__(self):
+    def __init__(self):
+        self.EXTENSIONS_TO_LOADERS = {
+            ".pdf": PyMuPDFLoader,
+            ".pptx": UnstructuredPowerPointLoader,
+            ".ppt": UnstructuredPowerPointLoader,
+            ".xls": UnstructuredExcelLoader,
+            ".xlsx": UnstructuredExcelLoader,
+            ".docx": Docx2txtLoader,
+            ".doc": Docx2txtLoader,
+            ".txt": TextLoader,
+            ".md": ObsidianLoader,
+            ".csv": CSVLoader,
+        }
+        
+        self.DEVICE = torch.device(
+            "mps" if torch.backends.mps.is_available() else
+            "cuda" if torch.cuda.is_available() else
+            "cpu"
+        )
+        
+        self.START_INDEXING = os.environ.get("START_INDEXING")
+        self.LOCAL_FILES_PATH = os.environ.get("LOCAL_FILES_PATH")
+        self.CONTAINER_PATH = os.environ.get("CONTAINER_PATH")
+        self.QDRANT_COLLECTION = "mnm_storage"
+        self.QDRANT_BOOTSTRAP = "qdrant"
+        self.EMBEDDING_MODEL_ID = os.environ.get("EMBEDDING_MODEL_ID")
+        self.EMBEDDING_SIZE = os.environ.get("EMBEDDING_SIZE")
+        
+        # Initialize chunking configuration
+        self.CHUNK_SIZE = int(os.environ.get('CHUNK_SIZE', 500))
+        self.CHUNK_OVERLAP = int(os.environ.get('CHUNK_OVERLAP', 200))
+        self.CHUNK_STRATEGY = os.environ.get('CHUNK_STRATEGY', 'character').lower()
+        
+        # Log the configuration values
         logger.info(f"Loaded CHUNK_SIZE={self.CHUNK_SIZE} from environment (default=500)")
         logger.info(f"Loaded CHUNK_OVERLAP={self.CHUNK_OVERLAP} from environment (default=200)")
-        logger.info(f"Raw env values: CHUNK_SIZE={os.environ.get('CHUNK_SIZE')}, CHUNK_OVERLAP={os.environ.get('CHUNK_OVERLAP')}")
+        logger.info(f"Loaded CHUNK_STRATEGY={self.CHUNK_STRATEGY} from environment (default=character)")
+        logger.info(f"Raw env values: CHUNK_SIZE={os.environ.get('CHUNK_SIZE')}, "
+                  f"CHUNK_OVERLAP={os.environ.get('CHUNK_OVERLAP')}, "
+                  f"CHUNK_STRATEGY={os.environ.get('CHUNK_STRATEGY')}")
 
 class Indexer:
     def __init__(self):
@@ -83,8 +101,18 @@ class Indexer:
             encode_kwargs={'normalize_embeddings': False}
         )
 
-    def _initialize_text_splitter(self) -> RecursiveCharacterTextSplitter:
-        return RecursiveCharacterTextSplitter(
+    def _initialize_text_splitter(self) -> ChunkingStrategy:
+        logger.info(f"Initializing text splitter with strategy: {self.config.CHUNK_STRATEGY}")
+        
+        if self.config.CHUNK_STRATEGY == 'h2':
+            logger.info("Using H2 chunking strategy")
+            return H2ChunkingStrategy(
+                chunk_size=self.config.CHUNK_SIZE,
+                chunk_overlap=self.config.CHUNK_OVERLAP
+            )
+        
+        logger.info("Using Character chunking strategy")
+        return CharacterChunkingStrategy(
             chunk_size=self.config.CHUNK_SIZE,
             chunk_overlap=self.config.CHUNK_OVERLAP
         )
@@ -163,10 +191,35 @@ class Indexer:
                 
                 # Apply text splitting if we found our document
                 if documents:
-                    documents = self.text_splitter.split_documents(documents)
+                    # Convert documents to chunks using our new chunking strategy
+                    chunked_docs = []
+                    for doc in documents:
+                        chunks = self.text_splitter.split_text(doc.page_content, doc.metadata)
+                        for chunk in chunks:
+                            # Create new document for each chunk
+                            chunked_docs.append(Document(
+                                page_content=chunk.text,
+                                metadata={**doc.metadata, **{
+                                    'chunk_start': chunk.start_char,
+                                    'chunk_end': chunk.end_char
+                                }}
+                            ))
+                    documents = chunked_docs
                     logger.info(f"Split into {len(documents)} chunks")
             else:
-                documents = loader.load_and_split(self.text_splitter)
+                raw_docs = loader.load()
+                chunked_docs = []
+                for doc in raw_docs:
+                    chunks = self.text_splitter.split_text(doc.page_content, doc.metadata)
+                    for chunk in chunks:
+                        chunked_docs.append(Document(
+                            page_content=chunk.text,
+                            metadata={**doc.metadata, **{
+                                'chunk_start': chunk.start_char,
+                                'chunk_end': chunk.end_char
+                            }}
+                        ))
+                documents = chunked_docs
             if not documents:
                 logger.warning(f"No documents loaded from {file_path}")
                 return []

@@ -14,7 +14,7 @@ This project aims to provide a tool for indexing and searching through documents
 ## How it should work
 The system should:
 - Index documents while preserving Obsidian-specific features:
-  - Tags (#tag) for content categorization
+  - Tags for content categorization
   - YAML frontmatter for structured metadata
   - Hierarchical tags for taxonomy
   - Backlinks for reverse relationship tracking (deferred for future implementation)
@@ -49,6 +49,8 @@ C:\\Users\\Alex\\Documents\\Projects\\minima-fork\\mcp-server\\
         └── server.py: Defines the MCP server using the `mcp` library, setting up logging, defining a `Query` model, and implementing `list_tools`, `list_prompts`, `call_tool`, and `get_prompt` functions for handling MCP requests.
 
 C:\Users\Alex\Documents\Projects\minima-fork\docker-compose-mcp.yml
+C:\Users\Alex\Documents\Projects\minima-fork\.env
+├──user adjusted variables like local files location, embedding model, chunk size and overlap, etc
 ```
 </files>
 <coding_parameters>
@@ -56,7 +58,6 @@ All code should follow best practices of modularity, separation of concerns, err
 </coding_parameters>
 
 <task>
-I want to implement a user-controled chunking strategy using variables in the .env file: size, overlap. The env file already has these variables in place. Help me modify the code to use them. 
-
-C:\Users\Alex\Documents\Projects\minima-fork\.env
+I've implemented chunk size and overlap in my environment variables, and I want to add h2 chunking. I've created chunking.py, but indexer isn't reading it when i start up the container. 
+C:\Users\Alex\Documents\Projects\minima-fork\indexer\chunking.py
  </task>
