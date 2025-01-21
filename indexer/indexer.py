@@ -35,6 +35,7 @@ from langchain_community.document_loaders import (
     UnstructuredPowerPointLoader,
     ObsidianLoader,
 )
+from single_file_loader import SingleFileObsidianLoader
 
 from storage import MinimaStore, IndexingStatus
 
@@ -52,7 +53,7 @@ class Config:
             ".docx": Docx2txtLoader,
             ".doc": Docx2txtLoader,
             ".txt": TextLoader,
-            ".md": ObsidianLoader,
+            ".md": SingleFileObsidianLoader,
             ".csv": CSVLoader,
         }
         
@@ -144,82 +145,43 @@ class Indexer:
         if not loader_class:
             raise ValueError(f"Unsupported file type: {file_extension}")
         
-        if loader_class == ObsidianLoader:
-            # Use the container path for ObsidianLoader
-            return loader_class(path=self.config.CONTAINER_PATH, collect_metadata=True)
+        if loader_class == SingleFileObsidianLoader:
+            # Use both file path and vault path for proper context
+            return loader_class(
+                file_path=file_path,
+                vault_path=self.config.CONTAINER_PATH,
+                collect_metadata=True
+            )
         
         return loader_class(file_path=file_path)
 
     def _process_file(self, loader, file_path: str) -> List[str]:
         try:
-            # Special handling for ObsidianLoader
-            if isinstance(loader, ObsidianLoader):
-                logger.info(f"Processing with ObsidianLoader: {file_path}")
-                # Load all documents from the directory
-                all_docs = loader.load()
-                logger.info(f"Loaded {len(all_docs)} total documents")
-                
-                # Get relative path from container path for matching
-                rel_path = os.path.relpath(file_path, self.config.CONTAINER_PATH)
-                logger.info(f"Looking for relative path: {rel_path}")
-                
-                # Log all document sources for debugging
-                sources = [doc.metadata.get('source', '') for doc in all_docs]
-                logger.info(f"Available document sources: {sources}")
-                
-                # Filter for our specific file using relative path
-                documents = []
-                for doc in all_docs:
-                    source = doc.metadata.get('source', '')
-                    if source:
-                        # Convert source to absolute path if it's relative
-                        if not os.path.isabs(source):
-                            source = os.path.join(self.config.CONTAINER_PATH, source)
-                        
-                        # Normalize both paths for comparison
-                        source_path = os.path.normpath(source)
-                        target_path = os.path.normpath(file_path)
-                        
-                        logger.info(f"Comparing source '{source_path}' with target '{target_path}'")
-                        
-                        # Try both exact match and relative path match
-                        if source_path == target_path or source_path.endswith(rel_path):
-                            logger.info(f"Found matching document with source: {source}")
-                            documents.append(doc)
-                
-                logger.info(f"Found {len(documents)} matching documents")
-                
-                # Apply text splitting if we found our document
-                if documents:
-                    # Convert documents to chunks using our new chunking strategy
-                    chunked_docs = []
-                    for doc in documents:
-                        chunks = self.text_splitter.split_text(doc.page_content, doc.metadata)
-                        for chunk in chunks:
-                            # Create new document for each chunk
-                            chunked_docs.append(Document(
-                                page_content=chunk.text,
-                                metadata={**doc.metadata, **{
-                                    'chunk_start': chunk.start_char,
-                                    'chunk_end': chunk.end_char
-                                }}
-                            ))
-                    documents = chunked_docs
-                    logger.info(f"Split into {len(documents)} chunks")
-            else:
+            # Load documents based on loader type
+            if isinstance(loader, SingleFileObsidianLoader):
+                logger.info(f"Processing with SingleFileObsidianLoader: {file_path}")
                 raw_docs = loader.load()
-                chunked_docs = []
-                for doc in raw_docs:
-                    chunks = self.text_splitter.split_text(doc.page_content, doc.metadata)
-                    for chunk in chunks:
-                        chunked_docs.append(Document(
-                            page_content=chunk.text,
-                            metadata={**doc.metadata, **{
-                                'chunk_start': chunk.start_char,
-                                'chunk_end': chunk.end_char
-                            }}
-                        ))
-                documents = chunked_docs
+            else:
+                logger.info(f"Processing with standard loader: {file_path}")
+                raw_docs = loader.load()
+                
+            logger.info(f"Loaded {len(raw_docs)} documents from {file_path}")
+            
+            # Convert documents to chunks using our chunking strategy
+            documents = []
+            for doc in raw_docs:
+                chunks = self.text_splitter.split_text(doc.page_content, doc.metadata)
+                for chunk in chunks:
+                    # Create new document for each chunk
+                    documents.append(Document(
+                        page_content=chunk.text,
+                        metadata={**doc.metadata, **{
+                            'chunk_start': chunk.start_char,
+                            'chunk_end': chunk.end_char
+                        }}
+                    ))
+            
+            logger.info(f"Split into {len(documents)} chunks")
             if not documents:
                 logger.warning(f"No documents loaded from {file_path}")
                 return []
@@ -232,51 +194,10 @@ class Indexer:
                 if 'path' in doc.metadata:
                     del doc.metadata['path']
                 
-                # Extract and consolidate all tags
-                if isinstance(loader, ObsidianLoader):
-                    all_tags = set()
-                    
-                # Process frontmatter tags
-                if 'tags' in doc.metadata:
-                    frontmatter_tags = doc.metadata['tags']
-                    # Handle string format (both comma-separated and YAML array string)
-                    if isinstance(frontmatter_tags, str):
-                        # First try to handle as comma-separated list
-                        if ',' in frontmatter_tags:
-                            all_tags.update(tag.strip() for tag in frontmatter_tags.split(','))
-                        # Then try ObsidianLoader's TAG_REGEX for #tag format
-                        matches = ObsidianLoader.TAG_REGEX.finditer(frontmatter_tags)
-                        all_tags.update(match.group(1) for match in matches if match)
-                        # Finally try to evaluate as YAML array string
-                        if frontmatter_tags.startswith('[') and frontmatter_tags.endswith(']'):
-                            try:
-                                import ast
-                                yaml_tags = ast.literal_eval(frontmatter_tags)
-                                if isinstance(yaml_tags, list):
-                                    all_tags.update(yaml_tags)
-                            except:
-                                pass
-                    # Handle list format
-                    elif isinstance(frontmatter_tags, list):
-                        all_tags.update(frontmatter_tags)
-                    
-                    # Process inline tags from content
-                    content_matches = ObsidianLoader.TAG_REGEX.finditer(doc.page_content)
-                    all_tags.update(match.group(1) for match in content_matches if match)
-                    
-                    # Filter out 'None' values and empty strings
-                    all_tags = {tag for tag in all_tags if tag and tag != 'None'}
-                    
-                    # Store as a sorted list
-                    if all_tags:
-                        doc.metadata['tags'] = sorted(list(all_tags))
-                    else:
-                        doc.metadata['tags'] = []
-                    
-                    # Remove redundant tag fields
-                    for field in ['global_tags', 'inline_tags']:
-                        if field in doc.metadata:
-                            del doc.metadata[field]
+                # Tag processing is now handled in SingleFileObsidianLoader
+                # Just ensure we have a tags field even if empty
+                if 'tags' not in doc.metadata:
+                    doc.metadata['tags'] = []
 
             uuids = [str(uuid.uuid4()) for _ in range(len(documents))]
             logger.info(f"Generated {len(uuids)} UUIDs for document insertion")

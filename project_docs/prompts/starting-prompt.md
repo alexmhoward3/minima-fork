@@ -58,39 +58,7 @@ All code should follow best practices of modularity, separation of concerns, err
 </coding_parameters>
 
 <task>
-My tag extraction strategy leaves too many different field types. there should be one tag payload containing:
-- YAML frontmatter tags
-- inline tags
+I'm trying to index my vault, but it's only indexing the parent folder. It "sees" the other files, but only 70 points have been added so far, and they're all the stuff in the parent folder. The core issue is that ObsidianLoader tries to load an entire directory at once, which is inefficient and causing our path matching issues.
 
-Chunks get all parent YAML frontmatter tags and any inline tags that appear. 
-
-Here's an example of poor tagging: {
-  "source": "note1.md",
-  "created": "2024-12-11 07:38",
-  "last_modified": 1735846277.6643808,
-  "last_accessed": 1737414756.1114662,
-  "vibe": "None",
-  "tags": "family,team,journal,leadership,major,work,planning,PeriodicNotes/DailyNote,reflection",
-  "workout": "None",
-  "Sleep": "None",
-  "updated": "2024-12-29T06:20",
-  "chunk_start": 788,
-  "chunk_end": 1469,
-  "file_path": "/usr/src/app/local_files/note1.md",
-  "global_tags": [],
-  "inline_tags": [
-    "major"
-  ]
-}
-
-They should appear as a keyword string value, eg: 
-{
-    "name": "Alice",
-    "friends": [
-        "bob",
-        "eva",
-        "jack"
-    ]
-}
-not a list separated by commas. 
+Review indexer.py, and then Do an exa search on obsidianloader to find best practices here. 
  </task>
