@@ -58,6 +58,39 @@ All code should follow best practices of modularity, separation of concerns, err
 </coding_parameters>
 
 <task>
-I've implemented chunk size and overlap in my environment variables, and I want to add h2 chunking. I've created chunking.py, but indexer isn't reading it when i start up the container. 
-C:\Users\Alex\Documents\Projects\minima-fork\indexer\chunking.py
+My tag extraction strategy leaves too many different field types. there should be one tag payload containing:
+- YAML frontmatter tags
+- inline tags
+
+Chunks get all parent YAML frontmatter tags and any inline tags that appear. 
+
+Here's an example of poor tagging: {
+  "source": "note1.md",
+  "created": "2024-12-11 07:38",
+  "last_modified": 1735846277.6643808,
+  "last_accessed": 1737414756.1114662,
+  "vibe": "None",
+  "tags": "family,team,journal,leadership,major,work,planning,PeriodicNotes/DailyNote,reflection",
+  "workout": "None",
+  "Sleep": "None",
+  "updated": "2024-12-29T06:20",
+  "chunk_start": 788,
+  "chunk_end": 1469,
+  "file_path": "/usr/src/app/local_files/note1.md",
+  "global_tags": [],
+  "inline_tags": [
+    "major"
+  ]
+}
+
+They should appear as a keyword string value, eg: 
+{
+    "name": "Alice",
+    "friends": [
+        "bob",
+        "eva",
+        "jack"
+    ]
+}
+not a list separated by commas. 
  </task>

@@ -232,22 +232,51 @@ class Indexer:
                 if 'path' in doc.metadata:
                     del doc.metadata['path']
                 
-                # Extract tags from frontmatter if available
+                # Extract and consolidate all tags
                 if isinstance(loader, ObsidianLoader):
-                    # Global tags from frontmatter
-                    if 'tags' in doc.metadata:
-                        tags = doc.metadata['tags']
-                        if isinstance(tags, str):
-                            # Use ObsidianLoader's TAG_REGEX to extract tags
-                            matches = ObsidianLoader.TAG_REGEX.finditer(tags)
-                            tags = [match.group(1) for match in matches if match]
-                        doc.metadata['global_tags'] = tags
-
-                    # Inline tags from content using ObsidianLoader's TAG_REGEX
+                    all_tags = set()
+                    
+                # Process frontmatter tags
+                if 'tags' in doc.metadata:
+                    frontmatter_tags = doc.metadata['tags']
+                    # Handle string format (both comma-separated and YAML array string)
+                    if isinstance(frontmatter_tags, str):
+                        # First try to handle as comma-separated list
+                        if ',' in frontmatter_tags:
+                            all_tags.update(tag.strip() for tag in frontmatter_tags.split(','))
+                        # Then try ObsidianLoader's TAG_REGEX for #tag format
+                        matches = ObsidianLoader.TAG_REGEX.finditer(frontmatter_tags)
+                        all_tags.update(match.group(1) for match in matches if match)
+                        # Finally try to evaluate as YAML array string
+                        if frontmatter_tags.startswith('[') and frontmatter_tags.endswith(']'):
+                            try:
+                                import ast
+                                yaml_tags = ast.literal_eval(frontmatter_tags)
+                                if isinstance(yaml_tags, list):
+                                    all_tags.update(yaml_tags)
+                            except:
+                                pass
+                    # Handle list format
+                    elif isinstance(frontmatter_tags, list):
+                        all_tags.update(frontmatter_tags)
+                    
+                    # Process inline tags from content
                     content_matches = ObsidianLoader.TAG_REGEX.finditer(doc.page_content)
-                    inline_tags = [match.group(1) for match in content_matches if match]
-                    if inline_tags:
-                        doc.metadata['inline_tags'] = inline_tags
+                    all_tags.update(match.group(1) for match in content_matches if match)
+                    
+                    # Filter out 'None' values and empty strings
+                    all_tags = {tag for tag in all_tags if tag and tag != 'None'}
+                    
+                    # Store as a sorted list
+                    if all_tags:
+                        doc.metadata['tags'] = sorted(list(all_tags))
+                    else:
+                        doc.metadata['tags'] = []
+                    
+                    # Remove redundant tag fields
+                    for field in ['global_tags', 'inline_tags']:
+                        if field in doc.metadata:
+                            del doc.metadata[field]
 
             uuids = [str(uuid.uuid4()) for _ in range(len(documents))]
             logger.info(f"Generated {len(uuids)} UUIDs for document insertion")
