@@ -2,7 +2,7 @@
 2. X .minimaignore - file that flags directories and files to ignore
 3. X gpu usage
 4. x move qdrant_data to F drive
-5. Configurable chunking strategy (size, overlap, character or H2)
+5. Configurable chunking strategy (Xsize, Xoverlap, character or H2)
 6. x Improved ObsidianLoader integration:
     Built-in metadata extraction
     Tag parsing from frontmatter and inline

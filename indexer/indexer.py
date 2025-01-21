@@ -57,8 +57,13 @@ class Config:
     EMBEDDING_MODEL_ID = os.environ.get("EMBEDDING_MODEL_ID")
     EMBEDDING_SIZE = os.environ.get("EMBEDDING_SIZE")
     
-    CHUNK_SIZE = 500
-    CHUNK_OVERLAP = 200
+    CHUNK_SIZE = int(os.environ.get('CHUNK_SIZE', 500))
+    CHUNK_OVERLAP = int(os.environ.get('CHUNK_OVERLAP', 200))
+    
+    def __post_init__(self):
+        logger.info(f"Loaded CHUNK_SIZE={self.CHUNK_SIZE} from environment (default=500)")
+        logger.info(f"Loaded CHUNK_OVERLAP={self.CHUNK_OVERLAP} from environment (default=200)")
+        logger.info(f"Raw env values: CHUNK_SIZE={os.environ.get('CHUNK_SIZE')}, CHUNK_OVERLAP={os.environ.get('CHUNK_OVERLAP')}")
 
 class Indexer:
     def __init__(self):
